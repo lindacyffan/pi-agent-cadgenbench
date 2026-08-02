@@ -1,0 +1,14 @@
+{
+  "run": "dimension-chain-all-medium-baseline-r1",
+  "timestamp_utc": "2026-07-16T16:15:22Z",
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "medium",
+  "mcp_spec": "build123d-mcp==0.3.79",
+  "mcp_version": "0.3.79",
+  "exec_timeout": "180",
+  "git_commit": "1c79c494dc6801b9c8bab1e27fbcceba7ee41b02",
+  "git_branch": "main",
+  "git_dirty": true,
+  "fixture_list": "selfbench/selfbench.txt",
+  "fixtures": ["9001","9002","9003","9004","9005","9006","9007","9008","9009","9010","9011","9013","9016","9017"]
+}

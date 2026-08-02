@@ -1,0 +1,3 @@
+name: basic-plate
+fixture_id: 9001
+prompt: Generate fixture 9001 using the existing CADGenBench harness.

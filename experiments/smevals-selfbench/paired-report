@@ -1,0 +1,246 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml"]
+# ///
+
+from __future__ import annotations
+
+import argparse
+import json
+import random
+import statistics
+from pathlib import Path
+
+import yaml
+
+
+def model_token(metadata: dict[str, object]) -> str:
+    model = str(metadata.get("model", ""))
+    effort = str(metadata.get("reasoning_effort", ""))
+    return f"{model}:{effort}" if effort and effort != "config-default" else model
+
+
+def load_config_scores(
+    runs: Path, config: str, grader: str, requested_model: str | None
+) -> tuple[dict[str, list[float]], int, str]:
+    by_model: dict[str, dict[str, list[float]]] = {}
+    failures_by_model: dict[str, int] = {}
+    for grade_path in runs.glob(f"*/{config}/*/*/grades/{grader}/grade.yaml"):
+        grade = yaml.safe_load(grade_path.read_text())
+        task = grade_path.parents[5].name
+        run_dir = grade_path.parents[2]
+        run = yaml.safe_load((run_dir / "run.yaml").read_text())
+        if str(run.get("config", {}).get("name")) != config:
+            raise ValueError(f"run config does not match its directory: {run_dir}")
+        run_task = run.get("task", {})
+        if str(run_task.get("name")) != task:
+            raise ValueError(f"run task does not match its directory: {run_dir}")
+        task_path = Path(__file__).with_name("tasks") / f"{task}.yaml"
+        if not task_path.is_file():
+            raise ValueError(f"run references an undeclared task: {run_dir}")
+        declared_task = yaml.safe_load(task_path.read_text())
+        fixture_id = str(run_task.get("fixture_id"))
+        if fixture_id != str(declared_task.get("fixture_id")):
+            raise ValueError(f"run fixture does not match its task declaration: {run_dir}")
+        model = str(run["config"]["model"])
+        if requested_model and model != requested_model:
+            continue
+        provenance_path = run_dir / "provenance.json"
+        if not provenance_path.is_file():
+            raise ValueError(f"run is missing provenance: {run_dir}")
+        provenance = json.loads(provenance_path.read_text())
+        if str(provenance.get("fixture_id")) != fixture_id:
+            raise ValueError(f"run fixture does not match provenance: {run_dir}")
+        provenance_model = model_token(provenance)
+        if model != provenance_model:
+            raise ValueError(
+                f"run model does not match provenance: {run_dir} "
+                f"({model!r} != {provenance_model!r})"
+            )
+        source_run = provenance.get("source_run")
+        expected_saved_score: float | None = None
+        if grader == "saved" and source_run is None:
+            raise ValueError(f"saved grade run is missing source provenance: {run_dir}")
+        if source_run is not None:
+            if not isinstance(source_run, str) or Path(source_run).name != source_run:
+                raise ValueError(f"run has invalid source provenance: {run_dir}")
+            source_meta_path = (
+                Path(__file__).with_name("evidence") / source_run / "run_meta.json"
+            )
+            if not source_meta_path.is_file():
+                raise ValueError(f"run has unknown source provenance: {run_dir}")
+            source_metadata = json.loads(source_meta_path.read_text())
+            if source_metadata.get("run") != source_run:
+                raise ValueError(f"source metadata has the wrong run identity: {run_dir}")
+            source_model = model_token(source_metadata)
+            if provenance_model != source_model:
+                raise ValueError(
+                    f"run model does not match source evidence: {run_dir} "
+                    f"({provenance_model!r} != {source_model!r})"
+                )
+            if grader == "saved":
+                source_scores_path = source_meta_path.with_name("scores.json")
+                source_scores = json.loads(source_scores_path.read_text())
+                if source_scores.get("run") != source_run:
+                    raise ValueError(f"source scores have the wrong run identity: {run_dir}")
+                source_row = next(
+                    (
+                        row
+                        for row in source_scores.get("fixtures", [])
+                        if str(row.get("id")) == fixture_id
+                    ),
+                    None,
+                )
+                if source_row is None:
+                    raise ValueError(f"source evidence has no fixture score: {run_dir}")
+                expected_saved_score = float(
+                    source_row["scores"]["shape_similarity_score"]
+                )
+        values = by_model.setdefault(model, {})
+        score = grade.get("score")
+        if grade.get("outcome") != "pass" or score is None:
+            failures_by_model[model] = failures_by_model.get(model, 0) + 1
+            continue
+        numeric_score = float(score)
+        if grader == "saved":
+            if "evidence_verified" not in grade.get("tags", []):
+                raise ValueError(f"saved grade is not evidence-verified: {grade_path}")
+            if numeric_score != expected_saved_score:
+                raise ValueError(f"saved grade does not match source evidence: {grade_path}")
+        values.setdefault(task, []).append(numeric_score)
+    if not by_model:
+        raise ValueError(f"no passing grades for config {config!r}")
+    if len(by_model) > 1:
+        raise ValueError(
+            f"config {config!r} has multiple models ({', '.join(sorted(by_model))}); "
+            "select one with --model"
+        )
+    model, values = next(iter(by_model.items()))
+    failures = failures_by_model.get(model, 0)
+    return values, failures, model
+
+
+def hierarchical_bootstrap(
+    a: dict[str, list[float]], b: dict[str, list[float]], samples: int = 10_000
+) -> tuple[float, float, float]:
+    rng = random.Random(0)
+    tasks = sorted(set(a) & set(b))
+    means = sorted(
+        statistics.mean(
+            rng.choice(b[task]) - rng.choice(a[task])
+            for task in (rng.choice(tasks) for _ in tasks)
+        )
+        for _ in range(samples)
+    )
+    return (
+        statistics.stdev(means),
+        means[int(samples * 0.025)],
+        means[int(samples * 0.975)],
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Paired smevals config comparison")
+    parser.add_argument("--a", required=True, help="baseline config name")
+    parser.add_argument("--b", required=True, help="treatment config name")
+    parser.add_argument("--runs", default=str(Path(__file__).with_name("runs")))
+    parser.add_argument("--grader", default="saved")
+    parser.add_argument("--model", help="exact model token; required when a config has multiple models")
+    parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="allow both configs to omit the same declared tasks",
+    )
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    try:
+        a, failures_a, model_a = load_config_scores(Path(args.runs), args.a, args.grader, args.model)
+        b, failures_b, model_b = load_config_scores(Path(args.runs), args.b, args.grader, args.model)
+    except ValueError as exc:
+        parser.error(str(exc))
+    if model_a != model_b:
+        parser.error(f"config models differ: {args.a}={model_a}, {args.b}={model_b}")
+    if failures_a or failures_b:
+        parser.error(
+            f"failed grades present: {args.a}={failures_a}, {args.b}={failures_b}"
+        )
+    tasks_a, tasks_b = set(a), set(b)
+    if tasks_a != tasks_b:
+        parser.error(
+            "task coverage differs: "
+            f"only {args.a}={', '.join(sorted(tasks_a - tasks_b)) or 'none'}; "
+            f"only {args.b}={', '.join(sorted(tasks_b - tasks_a)) or 'none'}"
+        )
+    expected_tasks = {path.stem for path in Path(__file__).with_name("tasks").glob("*.yaml")}
+    if not args.allow_partial and tasks_a != expected_tasks:
+        parser.error(
+            "task coverage is incomplete: "
+            f"missing={', '.join(sorted(expected_tasks - tasks_a)) or 'none'}; "
+            f"unexpected={', '.join(sorted(tasks_a - expected_tasks)) or 'none'}"
+        )
+    common = sorted(tasks_a)
+    if not common:
+        parser.error("no commonly graded tasks for those configs")
+    unequal_repeats = [task for task in common if len(a[task]) != len(b[task])]
+    if unequal_repeats:
+        parser.error(
+            "repeat counts differ for tasks: "
+            + ", ".join(
+                f"{task} ({args.a}={len(a[task])}, {args.b}={len(b[task])})"
+                for task in unequal_repeats
+            )
+        )
+    mean_a = {task: statistics.mean(a[task]) for task in common}
+    mean_b = {task: statistics.mean(b[task]) for task in common}
+    deltas = [mean_b[task] - mean_a[task] for task in common]
+    mean_delta = statistics.mean(deltas)
+    se, ci_low, ci_high = hierarchical_bootstrap(a, b)
+    result = {
+        "baseline_config": args.a,
+        "treatment_config": args.b,
+        "grader": args.grader,
+        "model": model_a,
+        "paired_tasks": len(common),
+        "baseline_mean": statistics.mean(mean_a.values()),
+        "treatment_mean": statistics.mean(mean_b.values()),
+        "mean_delta": mean_delta,
+        "standard_error": se,
+        "bootstrap_95_ci": [ci_low, ci_high],
+        "failures": {args.a: failures_a, args.b: failures_b},
+        "tasks": [
+            {
+                "task": task,
+                "baseline": mean_a[task],
+                "treatment": mean_b[task],
+                "delta": mean_b[task] - mean_a[task],
+                "baseline_runs": len(a[task]),
+                "treatment_runs": len(b[task]),
+            }
+            for task in common
+        ],
+    }
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+
+    print(f"# Paired comparison: {args.b} vs {args.a}\n")
+    print(f"- Grader: {args.grader}")
+    print(f"- Model: {model_a}")
+    print(f"- Paired tasks: {len(common)}")
+    print(f"- Baseline mean: {result['baseline_mean']:.4f}")
+    print(f"- Treatment mean: {result['treatment_mean']:.4f}")
+    print(f"- Mean delta: {mean_delta:+.4f}")
+    print(f"- Standard error: {se:.4f}")
+    print(f"- Bootstrap 95% CI: [{ci_low:+.4f}, {ci_high:+.4f}]")
+    print(f"- Failures: {args.a}={failures_a}, {args.b}={failures_b}\n")
+    print("| Task | Baseline | Treatment | Delta |")
+    print("|---|---:|---:|---:|")
+    for task in result["tasks"]:
+        print(f"| {task['task']} | {task['baseline']:.4f} | {task['treatment']:.4f} | {task['delta']:+.4f} |")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

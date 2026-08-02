@@ -1,0 +1,3 @@
+name: inference-cover
+fixture_id: 9013
+prompt: Generate fixture 9013 using the existing CADGenBench harness.

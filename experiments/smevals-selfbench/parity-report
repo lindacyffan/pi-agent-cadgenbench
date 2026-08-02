@@ -1,0 +1,73 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml"]
+# ///
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import yaml
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Compare smevals grades with saved selfbench scores")
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--source", required=True, type=Path)
+    parser.add_argument("--runs", default=str(Path(__file__).with_name("runs")), type=Path)
+    parser.add_argument("--grader", default="saved")
+    parser.add_argument("--model", help="only include grades from this exact model token")
+    parser.add_argument("--tolerance", default=0.000001, type=float)
+    args = parser.parse_args()
+
+    source_doc = json.loads(args.source.read_text())
+    source = {str(row["id"]): float(row["scores"]["shape_similarity_score"])
+              for row in source_doc["fixtures"]}
+    observed: dict[str, list[float]] = {}
+    failed: set[str] = set()
+    for grade_path in args.runs.glob(f"*/{args.config}/*/*/grades/{args.grader}/grade.yaml"):
+        grade = yaml.safe_load(grade_path.read_text())
+        run = yaml.safe_load((grade_path.parents[2] / "run.yaml").read_text())
+        if args.model and str(run["config"]["model"]) != args.model:
+            continue
+        fixture_id = str(run["task"]["fixture_id"])
+        if grade.get("outcome") != "pass" or grade.get("score") is None:
+            failed.add(fixture_id)
+            continue
+        observed.setdefault(fixture_id, []).append(float(grade["score"]))
+
+    rows = []
+    for fixture_id in sorted(set(source) & set(observed), key=int):
+        scores = observed[fixture_id]
+        score = sum(scores) / len(scores)
+        delta = score - source[fixture_id]
+        max_abs_delta = max(abs(value - source[fixture_id]) for value in scores)
+        rows.append((fixture_id, source[fixture_id], score, delta, max_abs_delta, len(scores)))
+    missing = sorted(set(source) - set(observed), key=int)
+    outside = [row for row in rows if row[4] > args.tolerance]
+
+    print(f"# Score parity: {args.config} ({args.grader})\n")
+    print(f"- Compared: {len(rows)}")
+    print(f"- Missing: {len(missing)}")
+    print(f"- Failed grades: {len(failed)}")
+    print(f"- Tolerance: {args.tolerance:.4f}")
+    print(f"- Outside tolerance: {len(outside)}\n")
+    print("| Fixture | Saved | Regraded mean | Mean delta | Max abs delta | Runs |")
+    print("|---|---:|---:|---:|---:|---:|")
+    for fixture_id, expected, actual, delta, max_abs_delta, count in rows:
+        print(
+            f"| {fixture_id} | {expected:.4f} | {actual:.4f} | {delta:+.4f} "
+            f"| {max_abs_delta:.4f} | {count} |"
+        )
+    if missing:
+        print(f"\nMissing fixtures: {', '.join(missing)}")
+    if failed:
+        print(f"\nFailed grade fixtures: {', '.join(sorted(failed, key=int))}")
+    return 1 if missing or failed or outside else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

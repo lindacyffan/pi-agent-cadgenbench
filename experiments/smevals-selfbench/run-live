@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/../.." && pwd)"
+FIXTURE_ID="${SMEVALS_TASK_FIXTURE_ID:?task must define fixture_id}"
+MCP_SPEC="build123d-mcp==0.3.79"
+EXEC_TIMEOUT=240
+INPUT="$SMEVALS_RUN_DIR/fixture-input"
+HARNESS_WORK="$SMEVALS_RUN_DIR/harness-work"
+
+mkdir -p "$INPUT" "$HARNESS_WORK"
+cp "$REPO/selfbench/fixtures/$FIXTURE_ID/description.yaml" "$INPUT/description.yaml"
+cp "$REPO/selfbench/fixtures/$FIXTURE_ID/input.png" "$INPUT/input.png"
+
+case "$SMEVALS_MODEL" in
+  claude*) DRIVER="$REPO/harness/run_fixture.sh"; FILTER="$REPO/harness/stream_filter.py" ;;
+  *) DRIVER="$REPO/harness/run_fixture_codex.sh"; FILTER="$REPO/harness/stream_filter_codex.py" ;;
+esac
+
+"$DRIVER" "$INPUT" "$HARNESS_WORK" "$SMEVALS_MODEL" "$MCP_SPEC" "$EXEC_TIMEOUT" \
+  > "$SMEVALS_RUN_DIR/driver.log" 2>&1
+
+[[ -f "$HARNESS_WORK/output.step" ]] || {
+  echo "harness did not produce output.step" >&2
+  exit 1
+}
+cp "$HARNESS_WORK/output.step" "$SMEVALS_RUN_DIR/output.step"
+
+if [[ -f "$HARNESS_WORK/stream.jsonl" ]]; then
+  python3 "$FILTER" "$HARNESS_WORK" < "$HARNESS_WORK/stream.jsonl" >/dev/null 2>&1 || true
+  [[ -f "$HARNESS_WORK/filtered.log" ]] && \
+    cp "$HARNESS_WORK/filtered.log" "$SMEVALS_RUN_DIR/filtered.log"
+fi
+
+python3 - "$REPO" "$SMEVALS_RUN_DIR" "$FIXTURE_ID" "$SMEVALS_MODEL" "$MCP_SPEC" "$EXEC_TIMEOUT" <<'PY'
+import hashlib, json, pathlib, subprocess, sys
+repo, run_dir = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+fixture_id, model_token, mcp_spec, timeout = sys.argv[3:]
+model, sep, effort = model_token.partition(":")
+prompt = repo / "harness" / "prompt_generation.txt"
+provenance = {
+    "fixture_id": fixture_id,
+    "model": model,
+    "reasoning_effort": effort if sep else "config-default",
+    "mcp_spec": mcp_spec,
+    "exec_timeout": timeout,
+    "git_commit": subprocess.check_output(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True
+    ).strip(),
+    "git_dirty": bool(subprocess.check_output(
+        ["git", "-C", str(repo), "status", "--porcelain"], text=True
+    ).strip()),
+    "harness_prompt": str(prompt.relative_to(repo)),
+    "harness_prompt_sha256": hashlib.sha256(prompt.read_bytes()).hexdigest(),
+    "output_step_sha256": hashlib.sha256((run_dir / "output.step").read_bytes()).hexdigest(),
+}
+(run_dir / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
+PY
+
+printf '{"fixture_id":"%s","model":"%s","mcp":"%s"}\n' \
+  "$FIXTURE_ID" "$SMEVALS_MODEL" "$MCP_SPEC"
