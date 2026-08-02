@@ -27,11 +27,12 @@ def load_config_scores(
         model = str(run["config"]["model"])
         if requested_model and model != requested_model:
             continue
+        values = by_model.setdefault(model, {})
         score = grade.get("score")
         if grade.get("outcome") != "pass" or score is None:
             failures_by_model[model] = failures_by_model.get(model, 0) + 1
             continue
-        by_model.setdefault(model, {}).setdefault(task, []).append(float(score))
+        values.setdefault(task, []).append(float(score))
     if not by_model:
         raise ValueError(f"no passing grades for config {config!r}")
     if len(by_model) > 1:
@@ -80,9 +81,29 @@ def main() -> int:
         parser.error(str(exc))
     if model_a != model_b:
         parser.error(f"config models differ: {args.a}={model_a}, {args.b}={model_b}")
-    common = sorted(set(a) & set(b))
+    if failures_a or failures_b:
+        parser.error(
+            f"failed grades present: {args.a}={failures_a}, {args.b}={failures_b}"
+        )
+    tasks_a, tasks_b = set(a), set(b)
+    if tasks_a != tasks_b:
+        parser.error(
+            "task coverage differs: "
+            f"only {args.a}={', '.join(sorted(tasks_a - tasks_b)) or 'none'}; "
+            f"only {args.b}={', '.join(sorted(tasks_b - tasks_a)) or 'none'}"
+        )
+    common = sorted(tasks_a)
     if not common:
         parser.error("no commonly graded tasks for those configs")
+    unequal_repeats = [task for task in common if len(a[task]) != len(b[task])]
+    if unequal_repeats:
+        parser.error(
+            "repeat counts differ for tasks: "
+            + ", ".join(
+                f"{task} ({args.a}={len(a[task])}, {args.b}={len(b[task])})"
+                for task in unequal_repeats
+            )
+        )
     mean_a = {task: statistics.mean(a[task]) for task in common}
     mean_b = {task: statistics.mean(b[task]) for task in common}
     deltas = [mean_b[task] - mean_a[task] for task in common]

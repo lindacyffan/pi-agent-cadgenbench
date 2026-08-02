@@ -27,14 +27,16 @@ def main() -> int:
     source = {str(row["id"]): float(row["scores"]["shape_similarity_score"])
               for row in source_doc["fixtures"]}
     observed: dict[str, list[float]] = {}
+    failed: set[str] = set()
     for grade_path in args.runs.glob(f"*/{args.config}/*/*/grades/{args.grader}/grade.yaml"):
         grade = yaml.safe_load(grade_path.read_text())
-        if grade.get("score") is None:
-            continue
         run = yaml.safe_load((grade_path.parents[2] / "run.yaml").read_text())
         if args.model and str(run["config"]["model"]) != args.model:
             continue
         fixture_id = str(run["task"]["fixture_id"])
+        if grade.get("outcome") != "pass" or grade.get("score") is None:
+            failed.add(fixture_id)
+            continue
         observed.setdefault(fixture_id, []).append(float(grade["score"]))
 
     rows = []
@@ -50,6 +52,7 @@ def main() -> int:
     print(f"# Score parity: {args.config} ({args.grader})\n")
     print(f"- Compared: {len(rows)}")
     print(f"- Missing: {len(missing)}")
+    print(f"- Failed grades: {len(failed)}")
     print(f"- Tolerance: {args.tolerance:.4f}")
     print(f"- Outside tolerance: {len(outside)}\n")
     print("| Fixture | Saved | Regraded mean | Mean delta | Max abs delta | Runs |")
@@ -61,7 +64,9 @@ def main() -> int:
         )
     if missing:
         print(f"\nMissing fixtures: {', '.join(missing)}")
-    return 1 if missing or outside else 0
+    if failed:
+        print(f"\nFailed grade fixtures: {', '.join(sorted(failed, key=int))}")
+    return 1 if missing or failed or outside else 0
 
 
 if __name__ == "__main__":

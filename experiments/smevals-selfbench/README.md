@@ -78,7 +78,9 @@ its standard error and 95% confidence interval. It defaults to the `saved`
 grader and accepts
 `--grader default` for explicit recomputation analysis. If a config contains
 more than one model, select an exact model token with `--model`; the tool will
-not average different models together. Artifact checks tag runner failures,
+not average different models together. Comparisons fail closed when either arm
+has failed grades, different task coverage, or unequal repeat counts. Parity
+checks likewise reject failed grades even if they contain a score. Artifact checks tag runner failures,
 missing output, and missing provenance separately; scoring tags distinguish
 invalid STEP, scorer timeout, and other scorer errors where the exception
 permits.
