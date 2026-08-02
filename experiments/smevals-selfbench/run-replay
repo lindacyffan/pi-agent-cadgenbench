@@ -4,7 +4,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 FIXTURE_ID="${SMEVALS_TASK_FIXTURE_ID:?task must define fixture_id}"
-SOURCE_RUN="dimension-chain-all-medium-treatment-r1"
+SOURCE_RUN="${SMEVALS_SOURCE_RUN:-dimension-chain-all-medium-treatment-r1}"
 SOURCE="$REPO/results/$SOURCE_RUN/$FIXTURE_ID/output.step"
 
 [[ -f "$SOURCE" ]] || {
@@ -13,5 +13,30 @@ SOURCE="$REPO/results/$SOURCE_RUN/$FIXTURE_ID/output.step"
 }
 
 cp "$SOURCE" "$SMEVALS_RUN_DIR/output.step"
+cp "$REPO/results/$SOURCE_RUN/run_meta.json" "$SMEVALS_RUN_DIR/source_run_meta.json"
+if [[ -f "$REPO/results/$SOURCE_RUN/uncommitted.patch" ]]; then
+  cp "$REPO/results/$SOURCE_RUN/uncommitted.patch" \
+    "$SMEVALS_RUN_DIR/source_uncommitted.patch"
+fi
+python3 - "$SMEVALS_RUN_DIR" "$SOURCE_RUN" "$FIXTURE_ID" <<'PY'
+import hashlib, json, pathlib, sys
+run_dir, source_run, fixture_id = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+meta = json.loads((run_dir / "source_run_meta.json").read_text())
+patch = run_dir / "source_uncommitted.patch"
+provenance = {
+    "source_run": source_run,
+    "fixture_id": fixture_id,
+    "model": meta.get("model"),
+    "reasoning_effort": meta.get("reasoning_effort"),
+    "mcp_spec": meta.get("mcp_spec"),
+    "mcp_version": meta.get("mcp_version"),
+    "exec_timeout": meta.get("exec_timeout"),
+    "git_commit": meta.get("git_commit"),
+    "git_dirty": meta.get("git_dirty"),
+    "source_step_sha256": hashlib.sha256((run_dir / "output.step").read_bytes()).hexdigest(),
+    "source_patch_sha256": hashlib.sha256(patch.read_bytes()).hexdigest() if patch.exists() else None,
+}
+(run_dir / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
+PY
 printf '{"fixture_id":"%s","source_run":"%s","model":"%s"}\n' \
   "$FIXTURE_ID" "$SOURCE_RUN" "$SMEVALS_MODEL"

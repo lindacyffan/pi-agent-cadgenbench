@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    run_dir = Path(os.environ["SMEVALS_RUN_DIR"])
+    output = run_dir / "output.step"
+    provenance = run_dir / "provenance.json"
+    run_record = run_dir / "run.yaml"
+
+    runner_success = False
+    if run_record.is_file():
+        for line in run_record.read_text().splitlines():
+            if line.startswith("exit_code:"):
+                runner_success = line.split(":", 1)[1].strip() == "0"
+                break
+
+    output_present = output.is_file() and output.stat().st_size > 0
+    provenance_present = provenance.is_file()
+    ok = runner_success and output_present
+    tags = []
+    if not runner_success:
+        tags.append("runner_failure")
+    if not output_present:
+        tags.append("missing_output")
+    if not provenance_present:
+        tags.append("missing_provenance")
+    if ok:
+        tags.append("artifact_ready")
+
+    print(json.dumps({
+        "metrics": {
+            "runner_success": runner_success,
+            "output_present": output_present,
+            "provenance_present": provenance_present,
+            "output_bytes": output.stat().st_size if output_present else 0,
+        },
+        "tags": tags,
+        "notes": "Run artifact contract passed" if ok else "Run artifact contract failed",
+    }))
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

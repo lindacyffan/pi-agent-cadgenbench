@@ -1,9 +1,8 @@
-name: default
+name: saved
 checks:
   - checker: ../checkers/artifact-contract
     required: true
-  - checker: ../checkers/shape-similarity
-    creates: candidate_aligned.step
+  - checker: ../checkers/saved-score
     required: true
 scoring:
   pass_threshold: 0.0

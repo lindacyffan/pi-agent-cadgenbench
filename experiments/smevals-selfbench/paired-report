@@ -1,0 +1,119 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml"]
+# ///
+
+from __future__ import annotations
+
+import argparse
+import json
+import random
+import statistics
+from pathlib import Path
+
+import yaml
+
+
+def load_config_scores(
+    runs: Path, config: str, grader: str, requested_model: str | None
+) -> tuple[dict[str, float], int, str]:
+    by_model: dict[str, dict[str, list[float]]] = {}
+    failures_by_model: dict[str, int] = {}
+    for grade_path in runs.glob(f"*/{config}/*/*/grades/{grader}/grade.yaml"):
+        grade = yaml.safe_load(grade_path.read_text())
+        task = grade_path.parents[5].name
+        run = yaml.safe_load((grade_path.parents[2] / "run.yaml").read_text())
+        model = str(run["config"]["model"])
+        if requested_model and model != requested_model:
+            continue
+        score = grade.get("score")
+        if grade.get("outcome") != "pass" or score is None:
+            failures_by_model[model] = failures_by_model.get(model, 0) + 1
+            continue
+        by_model.setdefault(model, {}).setdefault(task, []).append(float(score))
+    if not by_model:
+        raise ValueError(f"no passing grades for config {config!r}")
+    if len(by_model) > 1:
+        raise ValueError(
+            f"config {config!r} has multiple models ({', '.join(sorted(by_model))}); "
+            "select one with --model"
+        )
+    model, values = next(iter(by_model.items()))
+    failures = failures_by_model.get(model, 0)
+    return {task: statistics.mean(scores) for task, scores in values.items()}, failures, model
+
+
+def bootstrap_ci(deltas: list[float], samples: int = 10_000) -> tuple[float, float]:
+    rng = random.Random(0)
+    means = sorted(
+        statistics.mean(rng.choice(deltas) for _ in deltas)
+        for _ in range(samples)
+    )
+    return means[int(samples * 0.025)], means[int(samples * 0.975)]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Paired smevals config comparison")
+    parser.add_argument("--a", required=True, help="baseline config name")
+    parser.add_argument("--b", required=True, help="treatment config name")
+    parser.add_argument("--runs", default=str(Path(__file__).with_name("runs")))
+    parser.add_argument("--grader", default="saved")
+    parser.add_argument("--model", help="exact model token; required when a config has multiple models")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    try:
+        a, failures_a, model_a = load_config_scores(Path(args.runs), args.a, args.grader, args.model)
+        b, failures_b, model_b = load_config_scores(Path(args.runs), args.b, args.grader, args.model)
+    except ValueError as exc:
+        parser.error(str(exc))
+    if model_a != model_b:
+        parser.error(f"config models differ: {args.a}={model_a}, {args.b}={model_b}")
+    common = sorted(set(a) & set(b))
+    if not common:
+        parser.error("no commonly graded tasks for those configs")
+    deltas = [b[task] - a[task] for task in common]
+    mean_delta = statistics.mean(deltas)
+    se = statistics.stdev(deltas) / len(deltas) ** 0.5 if len(deltas) > 1 else 0.0
+    ci_low, ci_high = bootstrap_ci(deltas)
+    result = {
+        "baseline_config": args.a,
+        "treatment_config": args.b,
+        "grader": args.grader,
+        "model": model_a,
+        "paired_tasks": len(common),
+        "baseline_mean": statistics.mean(a[task] for task in common),
+        "treatment_mean": statistics.mean(b[task] for task in common),
+        "mean_delta": mean_delta,
+        "standard_error": se,
+        "bootstrap_95_ci": [ci_low, ci_high],
+        "failures": {args.a: failures_a, args.b: failures_b},
+        "tasks": [
+            {"task": task, "baseline": a[task], "treatment": b[task], "delta": b[task] - a[task]}
+            for task in common
+        ],
+    }
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+
+    print(f"# Paired comparison: {args.b} vs {args.a}\n")
+    print(f"- Grader: {args.grader}")
+    print(f"- Model: {model_a}")
+    print(f"- Paired tasks: {len(common)}")
+    print(f"- Baseline mean: {result['baseline_mean']:.4f}")
+    print(f"- Treatment mean: {result['treatment_mean']:.4f}")
+    print(f"- Mean delta: {mean_delta:+.4f}")
+    print(f"- Standard error: {se:.4f}")
+    print(f"- Bootstrap 95% CI: [{ci_low:+.4f}, {ci_high:+.4f}]")
+    print(f"- Failures: {args.a}={failures_a}, {args.b}={failures_b}\n")
+    print("| Task | Baseline | Treatment | Delta |")
+    print("|---|---:|---:|---:|")
+    for task in result["tasks"]:
+        print(f"| {task['task']} | {task['baseline']:.4f} | {task['treatment']:.4f} | {task['delta']:+.4f} |")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

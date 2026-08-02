@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def identify_source_run(repo: Path, run_dir: Path, fixture_id: str) -> str | None:
+    provenance = run_dir / "provenance.json"
+    if provenance.is_file():
+        return json.loads(provenance.read_text()).get("source_run")
+
+    candidate_hash = hashlib.sha256((run_dir / "output.step").read_bytes()).hexdigest()
+    for source_run in (
+        "dimension-chain-all-medium-baseline-r1",
+        "dimension-chain-all-medium-treatment-r1",
+    ):
+        source = repo / "results" / source_run / fixture_id / "output.step"
+        if source.is_file() and hashlib.sha256(source.read_bytes()).hexdigest() == candidate_hash:
+            return source_run
+    return None
+
+
+def main() -> int:
+    run_dir = Path(os.environ["SMEVALS_RUN_DIR"])
+    fixture_id = os.environ["SMEVALS_TASK_FIXTURE_ID"]
+    repo = Path(__file__).resolve().parents[3]
+    source_run = identify_source_run(repo, run_dir, fixture_id)
+    if not source_run:
+        print(json.dumps({
+            "metrics": {"saved_score_present": False},
+            "tags": ["missing_saved_score"],
+            "notes": "Could not identify a saved source run for this STEP",
+        }))
+        return 1
+
+    score_path = repo / "selfbench" / "scores" / f"{source_run}.json"
+    document = json.loads(score_path.read_text())
+    row = next((row for row in document["fixtures"] if str(row["id"]) == fixture_id), None)
+    if row is None:
+        print(json.dumps({
+            "metrics": {"saved_score_present": False},
+            "tags": ["missing_saved_score"],
+            "notes": f"No saved score for fixture {fixture_id} in {source_run}",
+        }))
+        return 1
+
+    scores = row["scores"]
+    similarity = float(scores["shape_similarity_score"])
+    print(json.dumps({
+        "score": similarity,
+        "metrics": {
+            "saved_score_present": True,
+            "shape_similarity": similarity,
+            "surface_distance_f1": float(scores["shape_surface_distance_f1"]),
+            "volume_iou": float(scores["shape_volume_iou"]),
+            "valid_output": not bool(row.get("errors")),
+        },
+        "tags": ["saved_score"],
+        "notes": f"Imported original score evidence from {source_run}",
+        "details": {
+            "source_run": source_run,
+            "fixture_id": fixture_id,
+            "metric_errors": row.get("errors", {}),
+            "alignment_rmse": row.get("alignment_rmse"),
+        },
+    }))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
