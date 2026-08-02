@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/../.." && pwd)"
+FIXTURE_ID="${SMEVALS_TASK_FIXTURE_ID:?task must define fixture_id}"
+SOURCE_RUN="dimension-chain-all-medium-treatment-r1"
+SOURCE="$REPO/results/$SOURCE_RUN/$FIXTURE_ID/output.step"
+
+[[ -f "$SOURCE" ]] || {
+  echo "missing replay artifact: $SOURCE" >&2
+  exit 1
+}
+
+cp "$SOURCE" "$SMEVALS_RUN_DIR/output.step"
+printf '{"fixture_id":"%s","source_run":"%s","model":"%s"}\n' \
+  "$FIXTURE_ID" "$SOURCE_RUN" "$SMEVALS_MODEL"

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/../.." && pwd)"
+FIXTURE_ID="${SMEVALS_TASK_FIXTURE_ID:?task must define fixture_id}"
+MCP_SPEC="build123d-mcp==0.3.79"
+EXEC_TIMEOUT=240
+INPUT="$SMEVALS_RUN_DIR/fixture-input"
+HARNESS_WORK="$SMEVALS_RUN_DIR/harness-work"
+
+mkdir -p "$INPUT" "$HARNESS_WORK"
+cp "$REPO/selfbench/fixtures/$FIXTURE_ID/description.yaml" "$INPUT/description.yaml"
+cp "$REPO/selfbench/fixtures/$FIXTURE_ID/input.png" "$INPUT/input.png"
+
+case "$SMEVALS_MODEL" in
+  claude*) DRIVER="$REPO/harness/run_fixture.sh"; FILTER="$REPO/harness/stream_filter.py" ;;
+  *) DRIVER="$REPO/harness/run_fixture_codex.sh"; FILTER="$REPO/harness/stream_filter_codex.py" ;;
+esac
+
+"$DRIVER" "$INPUT" "$HARNESS_WORK" "$SMEVALS_MODEL" "$MCP_SPEC" "$EXEC_TIMEOUT" \
+  > "$SMEVALS_RUN_DIR/driver.log" 2>&1
+
+[[ -f "$HARNESS_WORK/output.step" ]] || {
+  echo "harness did not produce output.step" >&2
+  exit 1
+}
+cp "$HARNESS_WORK/output.step" "$SMEVALS_RUN_DIR/output.step"
+
+if [[ -f "$HARNESS_WORK/stream.jsonl" ]]; then
+  python3 "$FILTER" "$HARNESS_WORK" < "$HARNESS_WORK/stream.jsonl" >/dev/null 2>&1 || true
+  [[ -f "$HARNESS_WORK/filtered.log" ]] && \
+    cp "$HARNESS_WORK/filtered.log" "$SMEVALS_RUN_DIR/filtered.log"
+fi
+
+printf '{"fixture_id":"%s","model":"%s","mcp":"%s"}\n' \
+  "$FIXTURE_ID" "$SMEVALS_MODEL" "$MCP_SPEC"

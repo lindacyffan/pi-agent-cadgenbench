@@ -1,0 +1,81 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "cadgenbench @ git+https://github.com/huggingface/cadgenbench.git@8ae1432",
+# ]
+# ///
+
+from __future__ import annotations
+
+import json
+import os
+import random
+import shutil
+import sys
+from pathlib import Path
+
+import numpy as np
+from cadgenbench.eval.shape_similarity import compare_step_files
+
+
+def main() -> int:
+    run_dir = Path(os.environ["SMEVALS_RUN_DIR"])
+    fixture_id = os.environ["SMEVALS_TASK_FIXTURE_ID"]
+    repo = Path(__file__).resolve().parents[3]
+    source_candidate = run_dir / "output.step"
+    candidate = Path.cwd() / "candidate.step"
+    ground_truth = repo / "selfbench" / "fixtures" / fixture_id / "ground_truth.step"
+
+    if not source_candidate.is_file():
+        print(json.dumps({
+            "score": 0.0,
+            "metrics": {"valid_output": False},
+            "tags": ["missing_output"],
+            "notes": "Run did not produce output.step",
+        }))
+        return 1
+
+    # The scorer writes an aligned STEP beside its candidate. Keep both in the
+    # grade workspace so grading cannot mutate an immutable smevals Run.
+    shutil.copy2(source_candidate, candidate)
+    random.seed(0)
+    np.random.seed(0)
+
+    try:
+        result = compare_step_files(str(candidate), str(ground_truth), align=True)
+        scores = result.scores
+        similarity = float(scores.get("shape_similarity_score", 0.0))
+        surface_f1 = float(scores.get("shape_surface_distance_f1", 0.0))
+        volume_iou = float(scores.get("shape_volume_iou", 0.0))
+        errors = list(result.metric_errors or [])
+    except Exception as exc:
+        print(json.dumps({
+            "score": 0.0,
+            "metrics": {"valid_output": False},
+            "tags": ["scoring_error"],
+            "notes": f"CADGenBench scorer failed: {type(exc).__name__}: {exc}",
+        }))
+        return 1
+
+    print(json.dumps({
+        "score": similarity,
+        "metrics": {
+            "shape_similarity": similarity,
+            "surface_distance_f1": surface_f1,
+            "volume_iou": volume_iou,
+            "valid_output": not errors,
+        },
+        "tags": ["scored"] if not errors else ["scored_with_errors"],
+        "notes": "; ".join(map(str, errors)) if errors else "CADGenBench shape score completed",
+        "details": {
+            "fixture_id": fixture_id,
+            "metric_errors": errors,
+            "alignment_rmse": result.alignment_rmse,
+        },
+    }))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
