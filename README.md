@@ -53,7 +53,7 @@ on the right side of the line:
 
 `model` defaults to `claude-opus-4-8` (`claude-*` routes to Claude Code; any
 other id, e.g. `gpt-5.5`, routes to the Codex CLI driver — see below). `mcp_spec`
-defaults to `build123d-mcp@latest` (unpinned). `jobs` (fixtures run concurrently;
+defaults to the reproducible pin `build123d-mcp==0.3.81`. `jobs` (fixtures run concurrently;
 each has its own work dir, so parallel runs never collide) defaults to `4` —
 lower it if you hit API rate limits (429s). `exec_timeout` (seconds, passed to
 both drivers as `--exec-timeout`) defaults to each server's own default
@@ -63,10 +63,9 @@ fixture is fetched, run through `harness/run_fixture.sh` (generation or editing
 is auto-detected from the fixture's files), and the result copied to
 `results/<run_name>/<id>/output.step`. Per-fixture failures don't abort the sweep.
 
-**Pin `mcp_spec` to an exact version** (`build123d-mcp==0.3.72`) for any run you
-intend to report or compare against another run — the unpinned default is only
-for quick, throwaway exploration. A moving spec breaks reproducibility: two runs
-of "the same" sweep can silently use different build123d-mcp code.
+Override `mcp_spec` explicitly when testing another release or a local build.
+Reported comparisons should always use an exact version; a moving `@latest`
+spec can silently change the build123d-mcp code between runs.
 
 Test an unreleased build (e.g. a local branch or `main`):
 

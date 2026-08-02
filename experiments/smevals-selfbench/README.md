@@ -25,7 +25,7 @@ rejects model overrides that do not exactly match the source model and effort.
 
 ## Run a live config
 
-The live config delegates each task to the existing harness using MCP 0.3.79:
+The live config delegates each task to the existing harness using MCP 0.3.81:
 
 ```bash
 uv tool run --from smevals==0.2.0 smevals run experiments/smevals-selfbench -c live -g

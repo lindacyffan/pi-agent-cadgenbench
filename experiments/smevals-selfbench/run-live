@@ -4,7 +4,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 FIXTURE_ID="${SMEVALS_TASK_FIXTURE_ID:?task must define fixture_id}"
-MCP_SPEC="build123d-mcp==0.3.79"
+MCP_SPEC="build123d-mcp==0.3.81"
 EXEC_TIMEOUT=240
 INPUT="$SMEVALS_RUN_DIR/fixture-input"
 HARNESS_WORK="$SMEVALS_RUN_DIR/harness-work"

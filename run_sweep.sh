@@ -11,7 +11,7 @@
 #   model         : agent model id             (default: claude-opus-4-8).
 #                   claude-* routes to Claude Code; any other id (e.g. gpt-5.5)
 #                   routes to the Codex CLI driver. Both produce one output.step.
-#   mcp_spec      : build123d-mcp spec for uv tool run (default: build123d-mcp@latest;
+#   mcp_spec      : build123d-mcp spec for uv tool run (default: build123d-mcp==0.3.81;
 #                   pass "build123d-mcp @ file:///path" to test a local build)
 #   jobs          : fixtures to run concurrently (default 4). Each fixture has
 #                   its own work dir, so parallel runs never collide. If you hit
@@ -71,7 +71,7 @@ fi
 LIST="${1:?fixtures list file (one id per line)}"
 RUN="${2:?run name}"
 MODEL="${3:-claude-opus-4-8}"
-MCP_SPEC="${4:-build123d-mcp@latest}"
+MCP_SPEC="${4:-build123d-mcp==0.3.81}"
 JOBS="${5:-4}"
 EXEC_TIMEOUT="${6:-}"
 
@@ -101,8 +101,7 @@ if [[ -n "$(git -C "$HERE" status --porcelain 2>/dev/null)" ]]; then
 fi
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 FIX_JSON="$(printf '%s\n' "$FIXES" | awk 'NF{if(c++)printf ",";printf "\"%s\"",$0}')"
-# Resolve the spec to the actual installed version (e.g. build123d-mcp@latest -> 0.3.52)
-# so provenance pins a concrete version, not a moving '@latest'.
+# Resolve the spec to the actual installed version so provenance records what ran.
 MCP_VERSION="$(uv tool run --python 3.12 "$MCP_SPEC" --version 2>/dev/null | awk '{print $NF}' || true)"
 [[ -n "$MCP_VERSION" ]] || MCP_VERSION="unknown"
 cat > "$HERE/results/$RUN/run_meta.json" <<JSON
