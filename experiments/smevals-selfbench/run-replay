@@ -2,27 +2,42 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-REPO="$(cd "$HERE/../.." && pwd)"
 FIXTURE_ID="${SMEVALS_TASK_FIXTURE_ID:?task must define fixture_id}"
 SOURCE_RUN="${SMEVALS_SOURCE_RUN:-dimension-chain-all-medium-treatment-r1}"
-SOURCE="$REPO/results/$SOURCE_RUN/$FIXTURE_ID/output.step"
+EVIDENCE="$HERE/evidence/$SOURCE_RUN"
+SOURCE="$EVIDENCE/fixtures/$FIXTURE_ID/output.step"
+SCORES="$EVIDENCE/scores.json"
 
 [[ -f "$SOURCE" ]] || {
   echo "missing replay artifact: $SOURCE" >&2
   exit 1
 }
+[[ -f "$SCORES" ]] || {
+  echo "missing replay score evidence: $SCORES" >&2
+  exit 1
+}
 
 cp "$SOURCE" "$SMEVALS_RUN_DIR/output.step"
-cp "$REPO/results/$SOURCE_RUN/run_meta.json" "$SMEVALS_RUN_DIR/source_run_meta.json"
-if [[ -f "$REPO/results/$SOURCE_RUN/uncommitted.patch" ]]; then
-  cp "$REPO/results/$SOURCE_RUN/uncommitted.patch" \
+cp "$EVIDENCE/run_meta.json" "$SMEVALS_RUN_DIR/source_run_meta.json"
+cp "$SCORES" "$SMEVALS_RUN_DIR/source_scores.json"
+if [[ -f "$EVIDENCE/uncommitted.patch" ]]; then
+  cp "$EVIDENCE/uncommitted.patch" \
     "$SMEVALS_RUN_DIR/source_uncommitted.patch"
 fi
-python3 - "$SMEVALS_RUN_DIR" "$SOURCE_RUN" "$FIXTURE_ID" <<'PY'
+python3 - "$SMEVALS_RUN_DIR" "$SOURCE_RUN" "$FIXTURE_ID" "$SMEVALS_MODEL" <<'PY'
 import hashlib, json, pathlib, sys
-run_dir, source_run, fixture_id = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+run_dir, source_run, fixture_id, requested_model = pathlib.Path(sys.argv[1]), *sys.argv[2:]
 meta = json.loads((run_dir / "source_run_meta.json").read_text())
 patch = run_dir / "source_uncommitted.patch"
+expected_model = str(meta["model"])
+effort = str(meta.get("reasoning_effort") or "")
+if effort and effort != "config-default":
+    expected_model += f":{effort}"
+if requested_model != expected_model:
+    raise SystemExit(
+        f"replay model mismatch: config requested {requested_model!r}, "
+        f"but source run used {expected_model!r}"
+    )
 provenance = {
     "source_run": source_run,
     "fixture_id": fixture_id,
@@ -34,6 +49,7 @@ provenance = {
     "git_commit": meta.get("git_commit"),
     "git_dirty": meta.get("git_dirty"),
     "source_step_sha256": hashlib.sha256((run_dir / "output.step").read_bytes()).hexdigest(),
+    "source_scores_sha256": hashlib.sha256((run_dir / "source_scores.json").read_bytes()).hexdigest(),
     "source_patch_sha256": hashlib.sha256(patch.read_bytes()).hexdigest() if patch.exists() else None,
 }
 (run_dir / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")

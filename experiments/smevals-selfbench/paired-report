@@ -17,7 +17,7 @@ import yaml
 
 def load_config_scores(
     runs: Path, config: str, grader: str, requested_model: str | None
-) -> tuple[dict[str, float], int, str]:
+) -> tuple[dict[str, list[float]], int, str]:
     by_model: dict[str, dict[str, list[float]]] = {}
     failures_by_model: dict[str, int] = {}
     for grade_path in runs.glob(f"*/{config}/*/*/grades/{grader}/grade.yaml"):
@@ -41,16 +41,26 @@ def load_config_scores(
         )
     model, values = next(iter(by_model.items()))
     failures = failures_by_model.get(model, 0)
-    return {task: statistics.mean(scores) for task, scores in values.items()}, failures, model
+    return values, failures, model
 
 
-def bootstrap_ci(deltas: list[float], samples: int = 10_000) -> tuple[float, float]:
+def hierarchical_bootstrap(
+    a: dict[str, list[float]], b: dict[str, list[float]], samples: int = 10_000
+) -> tuple[float, float, float]:
     rng = random.Random(0)
+    tasks = sorted(set(a) & set(b))
     means = sorted(
-        statistics.mean(rng.choice(deltas) for _ in deltas)
+        statistics.mean(
+            rng.choice(b[task]) - rng.choice(a[task])
+            for task in (rng.choice(tasks) for _ in tasks)
+        )
         for _ in range(samples)
     )
-    return means[int(samples * 0.025)], means[int(samples * 0.975)]
+    return (
+        statistics.stdev(means),
+        means[int(samples * 0.025)],
+        means[int(samples * 0.975)],
+    )
 
 
 def main() -> int:
@@ -73,24 +83,32 @@ def main() -> int:
     common = sorted(set(a) & set(b))
     if not common:
         parser.error("no commonly graded tasks for those configs")
-    deltas = [b[task] - a[task] for task in common]
+    mean_a = {task: statistics.mean(a[task]) for task in common}
+    mean_b = {task: statistics.mean(b[task]) for task in common}
+    deltas = [mean_b[task] - mean_a[task] for task in common]
     mean_delta = statistics.mean(deltas)
-    se = statistics.stdev(deltas) / len(deltas) ** 0.5 if len(deltas) > 1 else 0.0
-    ci_low, ci_high = bootstrap_ci(deltas)
+    se, ci_low, ci_high = hierarchical_bootstrap(a, b)
     result = {
         "baseline_config": args.a,
         "treatment_config": args.b,
         "grader": args.grader,
         "model": model_a,
         "paired_tasks": len(common),
-        "baseline_mean": statistics.mean(a[task] for task in common),
-        "treatment_mean": statistics.mean(b[task] for task in common),
+        "baseline_mean": statistics.mean(mean_a.values()),
+        "treatment_mean": statistics.mean(mean_b.values()),
         "mean_delta": mean_delta,
         "standard_error": se,
         "bootstrap_95_ci": [ci_low, ci_high],
         "failures": {args.a: failures_a, args.b: failures_b},
         "tasks": [
-            {"task": task, "baseline": a[task], "treatment": b[task], "delta": b[task] - a[task]}
+            {
+                "task": task,
+                "baseline": mean_a[task],
+                "treatment": mean_b[task],
+                "delta": mean_b[task] - mean_a[task],
+                "baseline_runs": len(a[task]),
+                "treatment_runs": len(b[task]),
+            }
             for task in common
         ],
     }

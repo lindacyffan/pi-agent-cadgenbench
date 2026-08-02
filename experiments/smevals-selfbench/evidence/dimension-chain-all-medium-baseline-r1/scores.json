@@ -1,0 +1,146 @@
+{
+  "run": "dimension-chain-all-medium-baseline-r1",
+  "mean_shape_similarity_score": 0.9054144204656202,
+  "fixtures": [
+    {
+      "id": "9001",
+      "scores": {
+        "shape_surface_distance_f1": 0.9962199935757162,
+        "shape_volume_iou": 0.9995466852916051,
+        "shape_similarity_score": 0.9978833394336606
+      },
+      "errors": {},
+      "alignment_rmse": 0.4633762171683675
+    },
+    {
+      "id": "9002",
+      "scores": {
+        "shape_surface_distance_f1": 0.9405491952580937,
+        "shape_volume_iou": 0.9993545267731769,
+        "shape_similarity_score": 0.9699518610156352
+      },
+      "errors": {},
+      "alignment_rmse": 0.7516652088531004
+    },
+    {
+      "id": "9003",
+      "scores": {
+        "shape_surface_distance_f1": 0.9664198505825623,
+        "shape_volume_iou": 0.9991965805260367,
+        "shape_similarity_score": 0.9828082155542994
+      },
+      "errors": {},
+      "alignment_rmse": 0.6511980129225611
+    },
+    {
+      "id": "9004",
+      "scores": {
+        "shape_surface_distance_f1": 0.96716999906945,
+        "shape_volume_iou": 0.9992436777948419,
+        "shape_similarity_score": 0.983206838432146
+      },
+      "errors": {},
+      "alignment_rmse": 0.6440413084430386
+    },
+    {
+      "id": "9005",
+      "scores": {
+        "shape_surface_distance_f1": 0.9998199995999281,
+        "shape_volume_iou": 0.9975083547493387,
+        "shape_similarity_score": 0.9986641771746334
+      },
+      "errors": {},
+      "alignment_rmse": 0.498190458636686
+    },
+    {
+      "id": "9006",
+      "scores": {
+        "shape_surface_distance_f1": 0.8974998997214486,
+        "shape_volume_iou": 0.9996220663696938,
+        "shape_similarity_score": 0.9485609830455712
+      },
+      "errors": {},
+      "alignment_rmse": 0.9019549218150478
+    },
+    {
+      "id": "9007",
+      "scores": {
+        "shape_surface_distance_f1": 1.0,
+        "shape_volume_iou": 1.0,
+        "shape_similarity_score": 1.0
+      },
+      "errors": {},
+      "alignment_rmse": 0.9233169408499529
+    },
+    {
+      "id": "9008",
+      "scores": {
+        "shape_surface_distance_f1": 0.997349991878478,
+        "shape_volume_iou": 0.9995247378807125,
+        "shape_similarity_score": 0.9984373648795952
+      },
+      "errors": {},
+      "alignment_rmse": 0.8313520478631123
+    },
+    {
+      "id": "9009",
+      "scores": {
+        "shape_surface_distance_f1": 0.8408999424426209,
+        "shape_volume_iou": 0.94513049878103,
+        "shape_similarity_score": 0.8930152206118254
+      },
+      "errors": {},
+      "alignment_rmse": 1.4964331974560372
+    },
+    {
+      "id": "9010",
+      "scores": {
+        "shape_surface_distance_f1": 0.9750599195946916,
+        "shape_volume_iou": 0.9991369419410697,
+        "shape_similarity_score": 0.9870984307678807
+      },
+      "errors": {},
+      "alignment_rmse": 0.6862106210868687
+    },
+    {
+      "id": "9011",
+      "scores": {
+        "shape_surface_distance_f1": 0.9262597715544232,
+        "shape_volume_iou": 0.998290470286867,
+        "shape_similarity_score": 0.962275120920645
+      },
+      "errors": {},
+      "alignment_rmse": 1.0322971186447032
+    },
+    {
+      "id": "9013",
+      "scores": {
+        "shape_surface_distance_f1": 0.7113577060530041,
+        "shape_volume_iou": 0.5545440549110289,
+        "shape_similarity_score": 0.6329508804820165
+      },
+      "errors": {},
+      "alignment_rmse": 3.046958624788347
+    },
+    {
+      "id": "9016",
+      "scores": {
+        "shape_surface_distance_f1": 0.6908117039983855,
+        "shape_volume_iou": 0.6381571588701738,
+        "shape_similarity_score": 0.6644844314342797
+      },
+      "errors": {},
+      "alignment_rmse": 3.67061224931813
+    },
+    {
+      "id": "9017",
+      "scores": {
+        "shape_surface_distance_f1": 0.5054884386099175,
+        "shape_volume_iou": 0.8074416069230697,
+        "shape_similarity_score": 0.6564650227664937
+      },
+      "errors": {},
+      "alignment_rmse": 1.9234643744519806
+    }
+  ]
+}

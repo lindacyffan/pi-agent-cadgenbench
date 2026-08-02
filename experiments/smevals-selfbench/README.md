@@ -7,7 +7,8 @@ fixture fetching, model execution, or geometry scoring.
 ## Replay the dimension-chain A/B
 
 The baseline and treatment configs replay all 14 saved artifacts without model
-cost:
+cost. Their STEP files, score evidence, run metadata, and dirty patches are
+committed under `evidence/`, so replay works from a fresh checkout:
 
 ```bash
 uv tool run --from smevals==0.2.0 smevals run experiments/smevals-selfbench -c baseline
@@ -17,9 +18,10 @@ uv tool run --from smevals==0.2.0 smevals report experiments/smevals-selfbench -
 experiments/smevals-selfbench/paired-report --a baseline --b treatment --grader saved
 ```
 
-Replay runs retain the original `run_meta.json`, dirty patch, and a normalized
-`provenance.json` containing model, effort, MCP, timeout, git commit, patch hash,
-and STEP hash.
+Replay runs retain the original `run_meta.json`, dirty patch, complete score
+evidence, and a normalized `provenance.json` containing model, effort, MCP,
+timeout, git commit, patch hash, STEP hash, and score-evidence hash. Replay
+rejects model overrides that do not exactly match the source model and effort.
 
 ## Run a live config
 
@@ -64,15 +66,16 @@ Check regraded scores against the original saved score documents:
 ```bash
 experiments/smevals-selfbench/parity-report \
   --config baseline \
-  --source selfbench/scores/dimension-chain-all-medium-baseline-r1.json
+  --source experiments/smevals-selfbench/evidence/dimension-chain-all-medium-baseline-r1/scores.json
 experiments/smevals-selfbench/parity-report \
   --config treatment \
-  --source selfbench/scores/dimension-chain-all-medium-treatment-r1.json
+  --source experiments/smevals-selfbench/evidence/dimension-chain-all-medium-treatment-r1/scores.json
 ```
 
-`paired-report` averages repeated grades within each task/config, computes the
-paired treatment-minus-baseline delta, standard error, and a seeded bootstrap
-95% confidence interval. It defaults to the `saved` grader and accepts
+`paired-report` computes task-level point estimates from repeated grades, then
+uses a seeded hierarchical bootstrap that resamples both fixtures and runs for
+its standard error and 95% confidence interval. It defaults to the `saved`
+grader and accepts
 `--grader default` for explicit recomputation analysis. If a config contains
 more than one model, select an exact model token with `--model`; the tool will
 not average different models together. Artifact checks tag runner failures,

@@ -4,49 +4,64 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import sys
 from pathlib import Path
 
 
-def identify_source_run(repo: Path, run_dir: Path, fixture_id: str) -> str | None:
-    provenance = run_dir / "provenance.json"
-    if provenance.is_file():
-        return json.loads(provenance.read_text()).get("source_run")
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
-    candidate_hash = hashlib.sha256((run_dir / "output.step").read_bytes()).hexdigest()
-    for source_run in (
-        "dimension-chain-all-medium-baseline-r1",
-        "dimension-chain-all-medium-treatment-r1",
-    ):
-        source = repo / "results" / source_run / fixture_id / "output.step"
-        if source.is_file() and hashlib.sha256(source.read_bytes()).hexdigest() == candidate_hash:
-            return source_run
-    return None
+
+def fail(tag: str, notes: str) -> int:
+    print(json.dumps({
+        "metrics": {"saved_score_present": False, "evidence_verified": False},
+        "tags": [tag],
+        "notes": notes,
+    }))
+    return 1
 
 
 def main() -> int:
     run_dir = Path(os.environ["SMEVALS_RUN_DIR"])
     fixture_id = os.environ["SMEVALS_TASK_FIXTURE_ID"]
-    repo = Path(__file__).resolve().parents[3]
-    source_run = identify_source_run(repo, run_dir, fixture_id)
-    if not source_run:
-        print(json.dumps({
-            "metrics": {"saved_score_present": False},
-            "tags": ["missing_saved_score"],
-            "notes": "Could not identify a saved source run for this STEP",
-        }))
-        return 1
+    candidate = run_dir / "output.step"
+    provenance_path = run_dir / "provenance.json"
+    scores_path = run_dir / "source_scores.json"
 
-    score_path = repo / "selfbench" / "scores" / f"{source_run}.json"
-    document = json.loads(score_path.read_text())
-    row = next((row for row in document["fixtures"] if str(row["id"]) == fixture_id), None)
+    if not provenance_path.is_file() or not scores_path.is_file() or not candidate.is_file():
+        return fail("missing_saved_evidence", "Saved grading requires STEP, provenance, and score evidence")
+
+    try:
+        provenance = json.loads(provenance_path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        return fail("invalid_provenance", f"Could not read provenance: {exc}")
+
+    if str(provenance.get("fixture_id")) != fixture_id:
+        return fail("evidence_mismatch", "Provenance fixture does not match the task")
+    source_run = provenance.get("source_run")
+    if not isinstance(source_run, str) or Path(source_run).name != source_run:
+        return fail("invalid_provenance", "Provenance contains an invalid source run")
+    evidence = Path(__file__).resolve().parents[1] / "evidence" / source_run
+    canonical_step = evidence / "fixtures" / fixture_id / "output.step"
+    canonical_scores = evidence / "scores.json"
+    if not canonical_step.is_file() or not canonical_scores.is_file():
+        return fail("missing_saved_evidence", "Canonical saved evidence is unavailable")
+
+    step_hash = sha256(canonical_step)
+    scores_hash = sha256(canonical_scores)
+    if sha256(candidate) != step_hash or provenance.get("source_step_sha256") != step_hash:
+        return fail("evidence_mismatch", "STEP hash does not match saved provenance")
+    if sha256(scores_path) != scores_hash or provenance.get("source_scores_sha256") != scores_hash:
+        return fail("evidence_mismatch", "Score evidence hash does not match saved provenance")
+
+    try:
+        document = json.loads(scores_path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        return fail("invalid_saved_evidence", f"Could not read saved scores: {exc}")
+    if document.get("run") != source_run:
+        return fail("evidence_mismatch", "Score evidence source run does not match provenance")
+    row = next((row for row in document.get("fixtures", []) if str(row.get("id")) == fixture_id), None)
     if row is None:
-        print(json.dumps({
-            "metrics": {"saved_score_present": False},
-            "tags": ["missing_saved_score"],
-            "notes": f"No saved score for fixture {fixture_id} in {source_run}",
-        }))
-        return 1
+        return fail("missing_saved_score", f"No saved score for fixture {fixture_id}")
 
     scores = row["scores"]
     similarity = float(scores["shape_similarity_score"])
@@ -54,15 +69,16 @@ def main() -> int:
         "score": similarity,
         "metrics": {
             "saved_score_present": True,
+            "evidence_verified": True,
             "shape_similarity": similarity,
             "surface_distance_f1": float(scores["shape_surface_distance_f1"]),
             "volume_iou": float(scores["shape_volume_iou"]),
             "valid_output": not bool(row.get("errors")),
         },
-        "tags": ["saved_score"],
-        "notes": f"Imported original score evidence from {source_run}",
+        "tags": ["saved_score", "evidence_verified"],
+        "notes": f"Verified score evidence from {provenance['source_run']}",
         "details": {
-            "source_run": source_run,
+            "source_run": provenance["source_run"],
             "fixture_id": fixture_id,
             "metric_errors": row.get("errors", {}),
             "alignment_rmse": row.get("alignment_rmse"),

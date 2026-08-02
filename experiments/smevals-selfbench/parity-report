@@ -39,20 +39,26 @@ def main() -> int:
 
     rows = []
     for fixture_id in sorted(set(source) & set(observed), key=int):
-        score = sum(observed[fixture_id]) / len(observed[fixture_id])
-        rows.append((fixture_id, source[fixture_id], score, score - source[fixture_id]))
+        scores = observed[fixture_id]
+        score = sum(scores) / len(scores)
+        delta = score - source[fixture_id]
+        max_abs_delta = max(abs(value - source[fixture_id]) for value in scores)
+        rows.append((fixture_id, source[fixture_id], score, delta, max_abs_delta, len(scores)))
     missing = sorted(set(source) - set(observed), key=int)
-    outside = [row for row in rows if abs(row[3]) > args.tolerance]
+    outside = [row for row in rows if row[4] > args.tolerance]
 
     print(f"# Score parity: {args.config} ({args.grader})\n")
     print(f"- Compared: {len(rows)}")
     print(f"- Missing: {len(missing)}")
     print(f"- Tolerance: {args.tolerance:.4f}")
     print(f"- Outside tolerance: {len(outside)}\n")
-    print("| Fixture | Saved | Regraded | Delta |")
-    print("|---|---:|---:|---:|")
-    for fixture_id, expected, actual, delta in rows:
-        print(f"| {fixture_id} | {expected:.4f} | {actual:.4f} | {delta:+.4f} |")
+    print("| Fixture | Saved | Regraded mean | Mean delta | Max abs delta | Runs |")
+    print("|---|---:|---:|---:|---:|---:|")
+    for fixture_id, expected, actual, delta, max_abs_delta, count in rows:
+        print(
+            f"| {fixture_id} | {expected:.4f} | {actual:.4f} | {delta:+.4f} "
+            f"| {max_abs_delta:.4f} | {count} |"
+        )
     if missing:
         print(f"\nMissing fixtures: {', '.join(missing)}")
     return 1 if missing or outside else 0

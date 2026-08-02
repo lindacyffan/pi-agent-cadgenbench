@@ -22,7 +22,7 @@ def main() -> int:
 
     output_present = output.is_file() and output.stat().st_size > 0
     provenance_present = provenance.is_file()
-    ok = runner_success and output_present
+    ok = runner_success and output_present and provenance_present
     tags = []
     if not runner_success:
         tags.append("runner_failure")
