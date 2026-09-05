@@ -129,6 +129,14 @@ semantic workflow.
 - `harness/run_pi_experiment.test.mjs`
   Runner, invocation-isolation, and prompt-contract tests.
 
+- `harness/pi_stream_filter.py`
+  Optional sidecar monitor for a run's Pi JSON stream. It prints concise
+  execute, validation, export, reasoning, error, and completion events and
+  writes the same timeline to `filtered.log`.
+
+- `harness/pi_stream_filter_test.py`
+  Tests for the Pi stream event formats and live-follow behavior.
+
 ## Local Layout
 
 The default paths expect this sibling-directory layout:
@@ -190,7 +198,14 @@ Run the runner and prompt-isolation tests:
 node --test harness\run_pi_experiment.test.mjs
 ```
 
-The current expected result is six passing tests and zero failures.
+Run the stream-filter tests:
+
+```powershell
+python -m unittest discover -s harness -p "pi_stream_filter_test.py" -v
+```
+
+The current expected result is six passing runner tests, five passing Python
+tests, and zero failures.
 
 ## Run One Fixture
 
@@ -221,6 +236,20 @@ Useful options:
 - `--extension path\to\pi_build123d_mcp.ts`
 - `--provider-extension path\to\dashscope\extension`
 
+## Live Run Monitoring
+
+While an experiment is running, open another terminal in this repository and
+follow its stream:
+
+```powershell
+python harness\pi_stream_filter.py work\pi-runs\118-step-by-step --follow
+```
+
+The monitor reads only `stream.jsonl`, prints high-signal events live, and stops
+after `agent_settled`. It also writes the concise timeline to
+`work\pi-runs\118-step-by-step\filtered.log`. It does not change Pi, prompts,
+MCP, or experiment variables.
+
 ## Run Artifacts
 
 Each run directory contains:
@@ -228,6 +257,8 @@ Each run directory contains:
 - `prompt.txt`: the exact rendered prompt sent to Pi.
 - `stream.jsonl`: Pi events, assistant messages, tool calls, and tool results.
 - `pi.stderr.log`: Pi/provider diagnostics.
+- `filtered.log`: optional concise timeline written by
+  `pi_stream_filter.py`.
 - `run_meta.json`: model, variant, paths, MCP spec, timeout, timestamps, exit
   code, and whether the output was produced.
 - `output.step`: the generated CAD candidate.
