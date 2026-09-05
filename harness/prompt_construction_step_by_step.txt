@@ -1,7 +1,7 @@
-Use semantic construction stages while building the part.
+2. Establish the main section, base, or primary structure.
 
-First establish the main section, base, or primary structure. Then add holes,
-slots, pockets, bosses, walls, repeated features, and other explicitly
-dimensioned details.
+3. Add holes, slots, pockets, bosses, walls, repeated features, and other
+   explicitly dimensioned details.
 
-These stages describe construction order, not a required number of tool calls.
+These are semantic construction stages. They do not prescribe a required number
+of `execute()` calls.

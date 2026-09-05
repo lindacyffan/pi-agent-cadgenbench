@@ -7,9 +7,9 @@ prompt or domain-specific heuristics into either arm.
 ## Research Question
 
 Under otherwise identical runtime, model, tool, fixture, and output conditions,
-does replacing an autonomous construction policy with a semantic staged
-construction policy improve Pi Agent's CAD generation when both arms share the
-same validation, inspection, correction, checkpoint, and export workflow?
+does replacing autonomous construction stages with the official-style semantic
+workflow improve Pi Agent's CAD generation when both arms share the same
+validation, inspection, correction, checkpoint, and export stages?
 
 ## Arms
 
@@ -20,12 +20,14 @@ same validation, inspection, correction, checkpoint, and export workflow?
 
 The baseline is not explicitly instructed to be one-shot. Pi may naturally
 construct the complete model in one action or choose its own tool sequence;
-actual behavior can be measured later from `stream.jsonl`. Both arms then
-follow the same verification and refinement sequence:
+actual behavior can be measured later from `stream.jsonl`.
+
+The `step-by-step` arm follows this semantic workflow:
 
 ```text
 read drawing and organize dimensions
-  -> apply the assigned construction policy
+  -> establish main section/base
+  -> add holes, slots, bosses, and other features
   -> validate
   -> save first valid checkpoint
   -> render/measure/cross-section inspect
@@ -34,15 +36,15 @@ read drawing and organize dimensions
   -> final export
 ```
 
-The construction policy is the only prompt difference:
+The baseline replaces only construction stages 2-3 with:
 
-- Baseline: choose the construction order autonomously.
-- Step-by-step: first establish the main section, base, or primary structure;
-  then add holes, slots, pockets, bosses, walls, repeated features, and other
-  explicitly dimensioned details.
+```text
+decide how to organize the construction autonomously
+  -> construct the complete part
+```
 
-Neither policy prescribes the number of `execute()` calls. The step policy is a
-semantic construction-order scaffold, not a tool-call-count constraint.
+The workflow is semantic. It does not prescribe a fixed number of `execute()`
+calls and does not copy the official harness's full prompt or CAD heuristics.
 
 ## Prompt Control
 
@@ -50,27 +52,27 @@ Both arms receive the exact same base prompt:
 
 - `harness/prompt_pi_agent_base.txt`
 
-The base contains the shared task, priorities, geometry rules, verification
-workflow, tool instructions, and output contract. Its
-`{{CONSTRUCTION_POLICY}}` placeholder is replaced with:
+The base contains the shared task, priorities, geometry rules, complete
+semantic workflow, tool instructions, and output contract. Its
+`{{CONSTRUCTION_WORKFLOW}}` placeholder is replaced with:
 
 - `harness/prompt_construction_pi_agent.txt` for `pi-agent`
 - `harness/prompt_construction_step_by_step.txt` for `step-by-step`
 
-Validation, checkpointing, rendering, measurement, cross-section inspection,
-local correction, revalidation, and final export are shared by both arms. The
-construction policy is the only differing section. Neither arm receives the
+Reading, validation, checkpointing, rendering, measurement, cross-section
+inspection, local correction, revalidation, and final export are shared by both
+arms. Only workflow stages 2-3 differ. Neither arm receives the
 official harness's dimension-table procedure, arithmetic-chain rules,
 side-profile-first heuristic, wall-thickness heuristic, dominant-form gate,
 MCP skill-resource instructions, or other full-prompt CAD tactics.
 
 The test suite checks that:
 
-- the prompt prefix before `## Construction policy` is identical;
-- the prompt suffix from `## Shared workflow` onward is identical;
-- the baseline uses autonomous construction ordering;
-- the treatment establishes primary structure before secondary features;
-- both prompts contain the shared validation and correction workflow;
+- the prompt before construction stage 2 is identical;
+- the prompt from `validate()` onward is identical;
+- the baseline uses autonomous construction stages;
+- the treatment follows the official-style semantic workflow;
+- both prompts contain the shared validation and correction stages;
 - both prompts use the exact scored output path;
 - neither prompt contains the excluded official harness heuristics;
 - neither prompt imposes an exact initial `execute()` count.
@@ -89,7 +91,8 @@ Both arms use:
 - The same working-directory preparation and stale-artifact cleanup.
 - The same STEP output contract and exact `output.step` path substitution.
 
-The intended experimental variable is the construction policy.
+The intended experimental variable is the construction stages inside the shared
+semantic workflow.
 
 ## Implementation Map
 
@@ -105,14 +108,14 @@ The intended experimental variable is the construction policy.
   tool calls.
 
 - `harness/prompt_pi_agent_base.txt`
-  The shared CAD task, workflow, tool instructions, and output contract used
-  by both arms.
+  The shared CAD task, semantic workflow, tool instructions, and output
+  contract used by both arms.
 
 - `harness/prompt_construction_pi_agent.txt`
-  Autonomous construction policy used by the baseline arm.
+  Autonomous construction stages used by the baseline arm.
 
 - `harness/prompt_construction_step_by_step.txt`
-  Semantic staged construction policy used by the treatment arm.
+  Main-structure-then-features construction stages used by the treatment arm.
 
 - `harness/run_pi_experiment.test.mjs`
   Runner, invocation-isolation, and prompt-contract tests.

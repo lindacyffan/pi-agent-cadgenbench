@@ -1,5 +1,4 @@
-Choose the construction order autonomously. Construct the complete part using
-the approach you determine is most faithful to the drawing.
+2. Decide how to organize the construction autonomously.
 
-This policy does not prescribe a staged construction order or a required number
-of tool calls.
+3. Construct the complete part using the approach you determine is most
+   faithful to the drawing.

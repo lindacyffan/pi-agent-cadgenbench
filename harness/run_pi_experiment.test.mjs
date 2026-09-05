@@ -89,7 +89,7 @@ test("prepares an isolated fixture workspace without prior artifacts", async () 
 	}
 });
 
-test("construction policy is the only prompt difference", async () => {
+test("renders the official-style semantic workflow without fixing execute count", async () => {
 	const root = await mkdtemp(join(tmpdir(), "pi-prompt-test-"));
 	const fixture = join(root, "fixture");
 	const work = join(root, "work");
@@ -110,31 +110,22 @@ test("construction policy is the only prompt difference", async () => {
 		const normalize = (prompt, outputPath) => prompt.replaceAll(outputPath, "{OUTPUT}");
 		const baselinePrompt = normalize(baseline.prompt, baseline.outputPath);
 		const stepPrompt = normalize(step.prompt, step.outputPath);
-		const constructionSection = /## Construction policy[\s\S]*?(?=\r?\n## Shared workflow\r?\n)/;
-		const baselineSection = constructionSection.exec(baselinePrompt)?.[0] ?? "";
-		const stepSection = constructionSection.exec(stepPrompt)?.[0] ?? "";
-		const baselinePrefix = baselinePrompt.slice(0, baselinePrompt.indexOf("## Construction policy"));
-		const stepPrefix = stepPrompt.slice(0, stepPrompt.indexOf("## Construction policy"));
-		const baselineSuffix = baselinePrompt.slice(baselinePrompt.indexOf("## Shared workflow"));
-		const stepSuffix = stepPrompt.slice(stepPrompt.indexOf("## Shared workflow"));
+		const verificationMarker = "\n4. Call `validate()`";
+		const baselinePrefix = baselinePrompt.slice(0, baselinePrompt.indexOf("\n2. "));
+		const stepPrefix = stepPrompt.slice(0, stepPrompt.indexOf("\n2. "));
+		const baselineSuffix = baselinePrompt.slice(baselinePrompt.indexOf(verificationMarker));
+		const stepSuffix = stepPrompt.slice(stepPrompt.indexOf(verificationMarker));
 
 		assert.equal(baselinePrefix, stepPrefix);
 		assert.equal(baselineSuffix, stepSuffix);
-		assert.ok(baselineSection.includes("Choose the construction order autonomously"));
-		assert.ok(baselineSection.includes("does not prescribe a staged construction order"));
-		assert.ok(stepSection.includes("semantic construction stages"));
-		assert.ok(stepSection.includes("main section, base, or primary structure"));
-		assert.match(stepSection, /holes,[\s\S]*slots,[\s\S]*pockets,[\s\S]*bosses/);
 
 		for (const prompt of [baseline.prompt, step.prompt]) {
-			assert.ok(!prompt.includes("{{CONSTRUCTION_POLICY}}"));
-			assert.ok(prompt.includes("## Shared workflow"));
-			assert.ok(prompt.includes("Read `input.png` and organize"));
-			assert.ok(prompt.includes("save the first valid checkpoint"));
-			assert.match(prompt, /render_view\(\)[\s\S]*measure\(\)/);
-			assert.ok(prompt.includes("largest remaining discrepancy"));
-			assert.ok(prompt.includes("Validate the corrected model again"));
+			assert.ok(!prompt.includes("{{CONSTRUCTION_WORKFLOW}}"));
+			assert.ok(!prompt.includes("## Construction policy"));
+			assert.ok(!prompt.includes("## Shared workflow"));
 			assert.ok(prompt.includes("## Priorities"));
+			assert.ok(prompt.includes("## Workflow"));
+			assert.ok(prompt.includes("save the first valid checkpoint"));
 			assert.ok(prompt.includes('format="step"'));
 			for (const forbiddenGuidance of [
 				"Build a dimension table",
@@ -149,6 +140,27 @@ test("construction policy is the only prompt difference", async () => {
 				assert.ok(!prompt.includes(forbiddenGuidance), `prompt inherited forbidden guidance: ${forbiddenGuidance}`);
 			}
 		}
+
+		const workflowPatterns = [
+			/Read `input\.png` and organize/,
+			/Establish the main section, base, or primary structure/,
+			/Add holes,[\s\S]*slots,[\s\S]*pockets,[\s\S]*bosses/,
+			/Call `validate\(\)`/,
+			/save the first valid checkpoint/,
+			/render_view\(\)[\s\S]*measure\(\)[\s\S]*cross-section/,
+			/largest remaining discrepancy[\s\S]*local correction/,
+			/Validate the corrected model again/,
+			/Export the final valid model/,
+		];
+		let searchAt = 0;
+		for (const pattern of workflowPatterns) {
+			const match = pattern.exec(stepPrompt.slice(searchAt));
+			assert.ok(match, `step workflow lost stage: ${pattern}`);
+			searchAt += match.index + match[0].length;
+		}
+
+		assert.match(baselinePrompt, /Decide how to organize[\s\S]*Construct the complete part/);
+		assert.doesNotMatch(baselinePrompt, /Establish the main section, base, or primary structure/);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

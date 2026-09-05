@@ -83,8 +83,8 @@ export function buildPiInvocation({ extensionPath, imagePath, modelSpec, piPath,
 async function renderVariantPrompt(variant, outputPath) {
 	const base = await readFile(path.join(HERE, "prompt_pi_agent_base.txt"), "utf8");
 	const constructionPolicy = await readFile(path.join(HERE, promptFileForVariant(variant)), "utf8");
-	const prompt = base.replace("{{CONSTRUCTION_POLICY}}", constructionPolicy.trimEnd());
-	if (prompt === base) throw new Error("Could not substitute the construction policy");
+	const prompt = base.replace("{{CONSTRUCTION_WORKFLOW}}", constructionPolicy.trimEnd());
+	if (prompt === base) throw new Error("Could not substitute the construction workflow");
 	return renderPrompt(`${prompt.trimEnd()}\n`, outputPath);
 }
 
