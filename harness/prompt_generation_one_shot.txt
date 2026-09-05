@@ -1,0 +1,11 @@
+## Working approach (one complete construction)
+
+Soft budget of about 15 minutes. Read the drawing carefully enough to identify the complete geometry, then construct the whole part in one geometry-changing execute() call.
+
+1. **Read the drawing, then encode all dimensions once.** Write the named parameters needed for the complete part before the first execute(). Include the overall envelope, profile heights, every hole/pocket/boss count and position, and any explicitly dimensioned fillets or chamfers. Do not trace the drawing outline from pixels; reconstruct the geometry parametrically from printed callouts.
+
+2. **Construct the complete part in the first execute().** That one call must create the body, profile relief, central bores, complete hole/pocket pattern, bosses, walls, and any explicitly dimensioned cosmetic features. Do not checkpoint an intermediate profile and add plan features in later construction calls. If a feature is genuinely unknown at this point, make the best complete interpretation rather than leaving it for staged construction.
+
+3. **Verify the complete construction.** Call validate(); when it passes, export() and save_snapshot(). Use measure(), cross_sections(), feature recognizers, and render_view() to compare the complete model against the drawing. If validity or a printed dimension is wrong, you may run a corrective execute() on the persistent session, but correction is recovery from a defect in the one-shot construction, not a planned sequence of profile-then-features steps.
+
+4. **Finish from the complete model.** Resolve validity failures, the largest dominant-form mismatch, and incorrect printed dimensions before final export. Do not decompose the initial construction retroactively. The final export must be written to exactly: {OUTPUT}
