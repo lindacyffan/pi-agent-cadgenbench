@@ -1,3 +1,0 @@
-name: dimension-chain-treatment
-runner: ../run-replay-treatment
-model: gpt-5.6-sol:medium

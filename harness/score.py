@@ -1,6 +1,6 @@
 """Score a drawing->solid result.
 
-Always reports the validity gate (the v0.3.51 build123d-mcp check). If a ground
+Always reports the build123d-mcp validity gate. If a ground
 truth STEP is given, also reports a coarse shape score: a uniform scale + rigid
 alignment search, then bidirectional surface-distance F1 (the core CADGenBench
 shape sub-metric) plus normalized Chamfer.
@@ -12,7 +12,7 @@ pollute bounding boxes and edge counts.
 
 Usage:
   uv run --project <build123d-mcp> --with trimesh --with scipy \
-      python eval/score.py <output.step> [<ground_truth.step>]
+      python harness/score.py <output.step> [<ground_truth.step>]
 """
 
 import sys

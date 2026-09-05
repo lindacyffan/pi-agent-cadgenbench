@@ -1,3 +1,0 @@
-name: dimension-chain-baseline
-runner: ../run-replay-baseline
-model: gpt-5.6-sol:medium

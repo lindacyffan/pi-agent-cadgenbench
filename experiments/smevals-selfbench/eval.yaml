@@ -1,4 +1,0 @@
-name: cadgenbench-selfbench-smoke
-description: >-
-  Prototype smevals adapter for comparing CADGenBench model, prompt, and
-  harness configurations on the hardest local generation fixtures.

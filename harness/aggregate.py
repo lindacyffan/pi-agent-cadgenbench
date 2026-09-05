@@ -3,8 +3,8 @@
 
 Per-fixture scores swing wildly between identical runs (std ~0.16), so the
 whole-benchmark mean has a ~0.018 error bar — a single before/after can't see a
-+0.01-0.02 change. Run each variant >=3x (harness/run_repeated.sh), extract each
-report's per-fixture table to a text file, then:
++0.01-0.02 change. Run each variant at least three times, extract each report's
+per-fixture table to a text file, then:
 
   # within-variant: per-fixture mean/std + overall mean +/- run-to-run stderr
   python harness/aggregate.py runA-r1.txt runA-r2.txt runA-r3.txt

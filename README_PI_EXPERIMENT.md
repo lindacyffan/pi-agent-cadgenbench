@@ -4,6 +4,16 @@ This branch runs a Pi-only CADGenBench generation experiment. It is not a rerun
 of the official strongest harness and does not inject that harness's full CAD
 prompt or domain-specific heuristics into either arm.
 
+## Repository Scope
+
+This branch is intentionally trimmed to the Pi-only experiment. Its active
+tracked content is this document and the focused files under `harness/`.
+The upstream official repository remains the provenance source; unrelated
+official runners, selfbench assets, split lists, historical logs, and generated
+CAD evidence are not part of this branch. The fixture, scoring, and aggregation
+utilities retained under `harness/` support this experiment but do not run an
+official generation pipeline.
+
 ## Research Question
 
 Under otherwise identical runtime, model, tool, fixture, and output conditions,

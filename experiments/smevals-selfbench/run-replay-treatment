@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
-export SMEVALS_SOURCE_RUN="dimension-chain-all-medium-treatment-r1"
-exec "$HERE/run-replay"
