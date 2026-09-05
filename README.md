@@ -9,6 +9,10 @@ scored behind a hard validity gate. This repo drives an agent to produce those
 STEPs, collects them into the submission layout, and validity-checks them before
 you upload.
 
+This branch also contains an isolated Pi-only A/B experiment for the generation
+workflow. See [README_PI_EXPERIMENT.md](README_PI_EXPERIMENT.md) for its design,
+controlled variables, implementation, and local smoke-test commands.
+
 This file is the source of truth for the pipeline. If you're an AI agent working
 in this repo, also read `CLAUDE.md` — it layers behavioral rules and hard-won
 gotchas on top of what's documented here; it should never contradict this file.
