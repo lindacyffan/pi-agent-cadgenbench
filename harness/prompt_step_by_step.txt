@@ -65,8 +65,8 @@ export("{OUTPUT}", format="step")
 
 The persistent build123d execution environment carries geometry forward between
 steps. Do not discard valid progress unless a repair requires rolling back to
-the last valid checkpoint. The workflow is semantic and does not prescribe a
-required number of `execute()` calls.
+the last valid checkpoint. Corrective `execute()` calls after inspection are
+allowed.
 
 ## Tool use
 

@@ -37,10 +37,12 @@ Resolve trade-offs in this order:
 1. Read `input.png` and organize the printed dimensions, visible views, and
    important features before constructing geometry.
 
-2. Decide how to organize the construction autonomously.
+2. Treat construction as one-shot. Plan the complete construction internally
+   before changing geometry.
 
-3. Construct the complete part using the approach you determine is most
-   faithful to the drawing.
+3. Use one geometry-changing `execute()` call to construct the complete part,
+   including its primary structure and all required features, in a single
+   integrated build123d script.
 
 4. Call `validate()` after construction and repair the geometry if validation
    fails.
@@ -65,8 +67,8 @@ export("{OUTPUT}", format="step")
 
 The persistent build123d execution environment carries geometry forward between
 steps. Do not discard valid progress unless a repair requires rolling back to
-the last valid checkpoint. The workflow is semantic and does not prescribe a
-required number of `execute()` calls.
+the last valid checkpoint. Corrective `execute()` calls after inspection are
+allowed.
 
 ## Tool use
 

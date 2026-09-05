@@ -17,7 +17,7 @@ official generation pipeline.
 ## Research Question
 
 Under otherwise identical runtime, model, tool, fixture, and output conditions,
-does replacing autonomous construction stages with the official-style semantic
+does replacing explicit one-shot construction with the official-style semantic
 workflow improve Pi Agent's CAD generation when both arms share the same
 validation, inspection, correction, checkpoint, and export stages?
 
@@ -28,9 +28,10 @@ validation, inspection, correction, checkpoint, and export stages?
 | Pi Agent baseline | `pi-agent` | `prompt_pi_agent.txt` |
 | Pi Agent + step-by-step | `step-by-step` | `prompt_step_by_step.txt` |
 
-The baseline is not explicitly instructed to be one-shot. Pi may naturally
-construct the complete model in one action or choose its own tool sequence;
-actual behavior can be measured later from `stream.jsonl`.
+The baseline explicitly generates in one shot: Pi first plans the complete
+construction internally, then uses one geometry-changing `execute()` call to
+construct the primary structure and all required features. Corrective calls
+after the shared validation and inspection workflow remain allowed.
 
 The `step-by-step` arm follows this semantic workflow:
 
@@ -49,12 +50,13 @@ read drawing and organize dimensions
 The baseline replaces only construction stages 2-3 with:
 
 ```text
-decide how to organize the construction autonomously
-  -> construct the complete part
+plan the complete construction internally
+  -> generate the complete geometry in one execute call
 ```
 
-The workflow is semantic. It does not prescribe a fixed number of `execute()`
-calls and does not copy the official harness's full prompt or CAD heuristics.
+The step-by-step workflow is semantic: it prescribes construction stages but
+not a fixed number of `execute()` calls, and it does not copy the official
+harness's full prompt or CAD heuristics.
 
 ## Prompt Control
 
@@ -80,12 +82,13 @@ The test suite checks that:
 
 - everything before `Working approach` is identical;
 - everything after `Working approach` is identical;
-- the baseline uses autonomous construction stages;
+- the baseline uses explicit one-shot construction;
 - the treatment follows the official-style semantic workflow;
 - both prompts contain the shared validation and correction stages;
 - both prompts use the exact scored output path;
 - neither prompt contains the excluded official harness heuristics;
-- neither prompt imposes an exact initial `execute()` count.
+- the baseline requires one initial geometry-changing `execute()` call;
+- the step-by-step arm does not impose an exact initial `execute()` count.
 
 ## Controlled Variables
 
@@ -118,7 +121,7 @@ semantic workflow.
   tool calls.
 
 - `harness/prompt_pi_agent.txt`
-  Complete baseline prompt with an autonomous construction approach.
+  Complete baseline prompt with an explicit one-shot construction approach.
 
 - `harness/prompt_step_by_step.txt`
   Complete treatment prompt with the official-style semantic workflow.

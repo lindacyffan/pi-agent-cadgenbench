@@ -136,11 +136,17 @@ test("uses separate complete working approaches with an identical prompt outside
 				"dominant form",
 				"build123d://skill",
 				"arithmetic chain",
-				"exactly one initial geometry-changing execute()",
 				"exactly two planned stages",
 			]) {
 				assert.ok(!prompt.includes(forbiddenGuidance), `prompt inherited forbidden guidance: ${forbiddenGuidance}`);
 			}
+		}
+
+		for (const forbiddenGuidance of [
+			"Treat construction as one-shot",
+			"Use one geometry-changing `execute()` call",
+		]) {
+			assert.ok(!stepPrompt.includes(forbiddenGuidance), `step arm inherited one-shot guidance: ${forbiddenGuidance}`);
 		}
 
 		const workflowPatterns = [
@@ -161,7 +167,11 @@ test("uses separate complete working approaches with an identical prompt outside
 			searchAt += match.index + match[0].length;
 		}
 
-		assert.match(baselinePrompt, /Decide how to organize[\s\S]*Construct the complete part/);
+		assert.match(baselinePrompt, /Treat construction as one-shot/);
+		assert.match(
+			baselinePrompt,
+			/Use one geometry-changing `execute\(\)` call[\s\S]*construct the complete part/,
+		);
 		assert.doesNotMatch(baselinePrompt, /Establish the main section, base, or primary structure/);
 		assert.equal(baselineSection.includes("semantic workflow"), stepSection.includes("semantic workflow"));
 	} finally {
