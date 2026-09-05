@@ -85,7 +85,7 @@ test("prepares an isolated fixture workspace without prior artifacts", async () 
 	}
 });
 
-test("one-shot changes only the shared working-approach section", async () => {
+test("one-shot is a neutral baseline and changes only the working-approach section", async () => {
 	const root = await mkdtemp(join(tmpdir(), "pi-prompt-test-"));
 	const fixture = join(root, "fixture");
 	const work = join(root, "work");
@@ -108,23 +108,21 @@ test("one-shot changes only the shared working-approach section", async () => {
 			oneShotSuffix.replaceAll(oneShot.outputPath, "{OUTPUT}").trimEnd(),
 			stepSuffix.replaceAll(step.outputPath, "{OUTPUT}").trimEnd(),
 		);
-		assert.ok(oneShotSection.length >= stepSection.length * 0.45);
 		assert.ok(step.prompt.includes("Build the side profile first, then the plan features."));
 		assert.ok(!oneShot.prompt.includes("Build the side profile first, then the plan features."));
-		assert.ok(oneShot.prompt.includes("Construct the complete part in the first execute()."));
-		const numberedItem = (prompt, number) => {
-			const start = prompt.indexOf(`\n${number}. **`);
-			assert.ok(start !== -1, `missing numbered item ${number}`);
-			const next = prompt.indexOf(`\n${number + 1}. **`, start);
-			const end = next === -1 ? prompt.length : next;
-			return prompt.slice(start, end).replaceAll("\r", "").trimEnd();
-		};
-		for (const sharedItem of [1, 3, 4, 5, 6]) {
-			assert.equal(
-				numberedItem(oneShotSection, sharedItem),
-				numberedItem(stepSection, sharedItem),
-				`one-shot item ${sharedItem} must preserve step-by-step guidance`,
-			);
+		assert.ok(oneShotSection.includes("single integrated generation problem"));
+		assert.ok(oneShotSection.includes("autonomously decide"));
+		assert.ok(oneShotSection.includes("Do not follow a predefined stage-by-stage decomposition"));
+		for (const stepSpecificGuidance of [
+			"Build a dimension table",
+			"Build the side profile first",
+			"**Checkpoint.**",
+			"Dominant form correction gate",
+			"Iterate to fidelity",
+			"Accuracy pass before finishing",
+		]) {
+			assert.ok(stepSection.includes(stepSpecificGuidance), `step prompt lost: ${stepSpecificGuidance}`);
+			assert.ok(!oneShotSection.includes(stepSpecificGuidance), `one-shot inherited step guidance: ${stepSpecificGuidance}`);
 		}
 		assert.ok(oneShot.prompt.includes('export("' + join(oneShot.workPath, "output.step") + '", format="step")'));
 		assert.ok(oneShot.prompt.includes("## Priorities (resolve trade-offs in this order)"));

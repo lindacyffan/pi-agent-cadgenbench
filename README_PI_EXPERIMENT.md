@@ -15,13 +15,13 @@ one-shot construction workflow?
 
 | Arm | Variant name | Construction policy |
 | --- | --- | --- |
-| Pi Agent one-shot | `one-shot` | The first geometry-changing `execute()` must construct the complete part. Later geometry-changing calls are corrective recovery, not a planned staged sequence. |
-| Pi Agent + step-by-step | `step-by-step` | Follows the official generation workflow: dimension table first, side/Z profile before plan features, checkpointing, dominant-form correction, fidelity iteration, and a final accuracy pass. |
+| Pi Agent | `one-shot` | Neutral one-shot baseline: analyze the complete drawing, autonomously decide the construction strategy, and make the initial geometry-changing `execute()` represent the complete attempted model without a prescribed stage-by-stage workflow. |
+| Pi Agent + step-by-step | `step-by-step` | Adds the official generation workflow: dimension table first, side/Z profile before plan features, checkpointing, dominant-form correction, fidelity iteration, and a final accuracy pass. |
 
 Both arms can use validation, rendering, measurement, feature recognizers, and
 corrective execution after the initial construction. The difference is whether
-the construction itself is planned as staged profile-then-features work or must
-be integrated into the first complete construction.
+the step-by-step workflow scaffold is supplied in addition to the shared CAD
+task instructions.
 
 ## Controlled variables
 
@@ -48,22 +48,19 @@ For the one-shot arm, `harness/run_pi_experiment.mjs` replaces only the section
 from `## Working approach` through the text immediately before `## Rules` with
 `harness/prompt_generation_one_shot.txt`.
 
-The current one-shot replacement is a minimal edit of the official workflow:
+The one-shot replacement is intentionally neutral:
 
-- The section title changes from checkpoint-first construction to integrated
-  one-shot construction.
-- The opening paragraph requires all justified geometry to be created by the
-  first geometry-changing `execute()`.
-- Item 2 changes from building the side/Z profile first and then plan features
-  to constructing the complete part in the first `execute()`.
-- Items 1, 3, 4, 5, and 6 remain textually identical to the step-by-step prompt.
-- Everything before `Working approach` and everything from `## Rules` onward
-  remains identical except for each run's absolute `output.step` path.
+- It treats the task as one integrated generation problem.
+- It lets Pi autonomously decide analysis order, code organization, inspection
+  timing, and refinement passes.
+- It requires the initial geometry-changing `execute()` to represent the
+  complete attempted model rather than a deliberately partial checkpoint.
+- It does not provide the step-specific dimension-table, profile-first,
+  checkpoint, dominant-form, iteration, or accuracy-pass workflow.
 
 The test `harness/run_pi_experiment.test.mjs` enforces this prompt contract.
-It checks the shared prefix and suffix, verifies that shared numbered guidance
-items remain identical, and rejects reintroduction of the step-specific
-"side profile first" wording in the one-shot prompt.
+It checks the shared prefix and suffix and rejects leakage of the step-specific
+workflow guidance into the one-shot baseline.
 
 ## Implementation map
 
