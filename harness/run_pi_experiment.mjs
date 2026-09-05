@@ -35,8 +35,8 @@ async function exists(filePath) {
 }
 
 export function promptFileForVariant(variant) {
-	if (variant === "pi-agent") return "prompt_pi_agent_base.txt";
-	if (variant === "step-by-step") return "prompt_step_by_step_workflow.txt";
+	if (variant === "pi-agent") return "prompt_construction_pi_agent.txt";
+	if (variant === "step-by-step") return "prompt_construction_step_by_step.txt";
 	throw new Error(`Unknown Pi experiment variant: ${variant}`);
 }
 
@@ -81,12 +81,11 @@ export function buildPiInvocation({ extensionPath, imagePath, modelSpec, piPath,
 }
 
 async function renderVariantPrompt(variant, outputPath) {
-	const base = await readFile(path.join(HERE, promptFileForVariant("pi-agent")), "utf8");
-	if (variant === "pi-agent") return renderPrompt(`${base.trimEnd()}\n`, outputPath);
-	if (variant !== "step-by-step") throw new Error(`Unknown Pi experiment variant: ${variant}`);
-
-	const workflow = await readFile(path.join(HERE, promptFileForVariant(variant)), "utf8");
-	return renderPrompt(`${base.trimEnd()}\n\n${workflow.trimEnd()}\n`, outputPath);
+	const base = await readFile(path.join(HERE, "prompt_pi_agent_base.txt"), "utf8");
+	const constructionPolicy = await readFile(path.join(HERE, promptFileForVariant(variant)), "utf8");
+	const prompt = base.replace("{{CONSTRUCTION_POLICY}}", constructionPolicy.trimEnd());
+	if (prompt === base) throw new Error("Could not substitute the construction policy");
+	return renderPrompt(`${prompt.trimEnd()}\n`, outputPath);
 }
 
 export async function prepareWorkspace({ fixturePath, workPath, variant = "pi-agent" }) {

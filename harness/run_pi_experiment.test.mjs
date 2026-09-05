@@ -13,8 +13,8 @@ import {
 } from "./run_pi_experiment.mjs";
 
 test("maps each experimental variant to its prompt file", () => {
-	assert.equal(promptFileForVariant("pi-agent"), "prompt_pi_agent_base.txt");
-	assert.equal(promptFileForVariant("step-by-step"), "prompt_step_by_step_workflow.txt");
+	assert.equal(promptFileForVariant("pi-agent"), "prompt_construction_pi_agent.txt");
+	assert.equal(promptFileForVariant("step-by-step"), "prompt_construction_step_by_step.txt");
 	assert.throws(() => promptFileForVariant("unknown"), /Unknown Pi experiment variant/);
 });
 
@@ -89,7 +89,7 @@ test("prepares an isolated fixture workspace without prior artifacts", async () 
 	}
 });
 
-test("step-by-step appends only the high-level workflow to the Pi baseline", async () => {
+test("construction policy is the only prompt difference", async () => {
 	const root = await mkdtemp(join(tmpdir(), "pi-prompt-test-"));
 	const fixture = join(root, "fixture");
 	const work = join(root, "work");
@@ -108,20 +108,32 @@ test("step-by-step appends only the high-level workflow to the Pi baseline", asy
 	});
 	try {
 		const normalize = (prompt, outputPath) => prompt.replaceAll(outputPath, "{OUTPUT}");
-		const normalizedBaseline = normalize(baseline.prompt, baseline.outputPath).trimEnd();
-		const normalizedStep = normalize(step.prompt, step.outputPath).trimEnd();
+		const baselinePrompt = normalize(baseline.prompt, baseline.outputPath);
+		const stepPrompt = normalize(step.prompt, step.outputPath);
+		const constructionSection = /## Construction policy[\s\S]*?(?=\r?\n## Shared workflow\r?\n)/;
+		const baselineSection = constructionSection.exec(baselinePrompt)?.[0] ?? "";
+		const stepSection = constructionSection.exec(stepPrompt)?.[0] ?? "";
+		const baselinePrefix = baselinePrompt.slice(0, baselinePrompt.indexOf("## Construction policy"));
+		const stepPrefix = stepPrompt.slice(0, stepPrompt.indexOf("## Construction policy"));
+		const baselineSuffix = baselinePrompt.slice(baselinePrompt.indexOf("## Shared workflow"));
+		const stepSuffix = stepPrompt.slice(stepPrompt.indexOf("## Shared workflow"));
 
-		assert.ok(normalizedStep.startsWith(`${normalizedBaseline}\n\n## Step-by-step workflow`));
-		assert.ok(!baseline.prompt.includes("## Step-by-step workflow"));
-		assert.ok(step.prompt.includes("organize the printed dimensions"));
-		assert.ok(step.prompt.includes("main section, base, or primary structure"));
-		assert.ok(step.prompt.includes("holes, slots, pockets, bosses"));
-		assert.ok(step.prompt.includes("save the first valid checkpoint"));
-		assert.match(step.prompt, /render_view\(\)[\s\S]*measure\(\)/);
-		assert.ok(step.prompt.includes("largest remaining discrepancy"));
-		assert.ok(step.prompt.includes("Validate the corrected model again"));
+		assert.equal(baselinePrefix, stepPrefix);
+		assert.equal(baselineSuffix, stepSuffix);
+		assert.ok(baselineSection.includes("Choose the construction order autonomously"));
+		assert.ok(baselineSection.includes("does not prescribe a staged construction order"));
+		assert.ok(stepSection.includes("semantic construction stages"));
+		assert.ok(stepSection.includes("main section, base, or primary structure"));
+		assert.match(stepSection, /holes,[\s\S]*slots,[\s\S]*pockets,[\s\S]*bosses/);
 
 		for (const prompt of [baseline.prompt, step.prompt]) {
+			assert.ok(!prompt.includes("{{CONSTRUCTION_POLICY}}"));
+			assert.ok(prompt.includes("## Shared workflow"));
+			assert.ok(prompt.includes("Read `input.png` and organize"));
+			assert.ok(prompt.includes("save the first valid checkpoint"));
+			assert.match(prompt, /render_view\(\)[\s\S]*measure\(\)/);
+			assert.ok(prompt.includes("largest remaining discrepancy"));
+			assert.ok(prompt.includes("Validate the corrected model again"));
 			assert.ok(prompt.includes("## Priorities"));
 			assert.ok(prompt.includes('format="step"'));
 			for (const forbiddenGuidance of [
