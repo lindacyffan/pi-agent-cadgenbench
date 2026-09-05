@@ -1,7 +1,0 @@
-2. Establish the main section, base, or primary structure.
-
-3. Add holes, slots, pockets, bosses, walls, repeated features, and other
-   explicitly dimensioned details.
-
-These are semantic construction stages. They do not prescribe a required number
-of `execute()` calls.

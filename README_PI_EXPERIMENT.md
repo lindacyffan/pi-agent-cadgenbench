@@ -15,8 +15,8 @@ validation, inspection, correction, checkpoint, and export stages?
 
 | Arm | Variant name | Prompt |
 | --- | --- | --- |
-| Pi Agent baseline | `pi-agent` | Shared base with `prompt_construction_pi_agent.txt` |
-| Pi Agent + step-by-step | `step-by-step` | Shared base with `prompt_construction_step_by_step.txt` |
+| Pi Agent baseline | `pi-agent` | `prompt_pi_agent.txt` |
+| Pi Agent + step-by-step | `step-by-step` | `prompt_step_by_step.txt` |
 
 The baseline is not explicitly instructed to be one-shot. Pi may naturally
 construct the complete model in one action or choose its own tool sequence;
@@ -48,28 +48,28 @@ calls and does not copy the official harness's full prompt or CAD heuristics.
 
 ## Prompt Control
 
-Both arms receive the exact same base prompt:
+Each arm has one complete prompt file with its own directly readable
+`Working approach` section:
 
-- `harness/prompt_pi_agent_base.txt`
+- `harness/prompt_pi_agent.txt`
+- `harness/prompt_step_by_step.txt`
 
-The base contains the shared task, priorities, geometry rules, complete
-semantic workflow, tool instructions, and output contract. Its
-`{{CONSTRUCTION_WORKFLOW}}` placeholder is replaced with:
-
-- `harness/prompt_construction_pi_agent.txt` for `pi-agent`
-- `harness/prompt_construction_step_by_step.txt` for `step-by-step`
+The runner does not assemble prompts at runtime. The two files are deliberately
+duplicated outside `Working approach` so the experimental contract is visible
+without tracing a template substitution.
 
 Reading, validation, checkpointing, rendering, measurement, cross-section
 inspection, local correction, revalidation, and final export are shared by both
-arms. Only workflow stages 2-3 differ. Neither arm receives the
+arms. Within `Working approach`, only construction stages 2-3 differ. Neither
+arm receives the
 official harness's dimension-table procedure, arithmetic-chain rules,
 side-profile-first heuristic, wall-thickness heuristic, dominant-form gate,
 MCP skill-resource instructions, or other full-prompt CAD tactics.
 
 The test suite checks that:
 
-- the prompt before construction stage 2 is identical;
-- the prompt from `validate()` onward is identical;
+- everything before `Working approach` is identical;
+- everything after `Working approach` is identical;
 - the baseline uses autonomous construction stages;
 - the treatment follows the official-style semantic workflow;
 - both prompts contain the shared validation and correction stages;
@@ -107,15 +107,11 @@ semantic workflow.
   keeps the process alive for the session so geometry state persists between
   tool calls.
 
-- `harness/prompt_pi_agent_base.txt`
-  The shared CAD task, semantic workflow, tool instructions, and output
-  contract used by both arms.
+- `harness/prompt_pi_agent.txt`
+  Complete baseline prompt with an autonomous construction approach.
 
-- `harness/prompt_construction_pi_agent.txt`
-  Autonomous construction stages used by the baseline arm.
-
-- `harness/prompt_construction_step_by_step.txt`
-  Main-structure-then-features construction stages used by the treatment arm.
+- `harness/prompt_step_by_step.txt`
+  Complete treatment prompt with the official-style semantic workflow.
 
 - `harness/run_pi_experiment.test.mjs`
   Runner, invocation-isolation, and prompt-contract tests.

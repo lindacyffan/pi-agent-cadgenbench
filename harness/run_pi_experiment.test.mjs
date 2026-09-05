@@ -13,8 +13,8 @@ import {
 } from "./run_pi_experiment.mjs";
 
 test("maps each experimental variant to its prompt file", () => {
-	assert.equal(promptFileForVariant("pi-agent"), "prompt_construction_pi_agent.txt");
-	assert.equal(promptFileForVariant("step-by-step"), "prompt_construction_step_by_step.txt");
+	assert.equal(promptFileForVariant("pi-agent"), "prompt_pi_agent.txt");
+	assert.equal(promptFileForVariant("step-by-step"), "prompt_step_by_step.txt");
 	assert.throws(() => promptFileForVariant("unknown"), /Unknown Pi experiment variant/);
 });
 
@@ -89,7 +89,7 @@ test("prepares an isolated fixture workspace without prior artifacts", async () 
 	}
 });
 
-test("renders the official-style semantic workflow without fixing execute count", async () => {
+test("uses separate complete working approaches with an identical prompt outside them", async () => {
 	const root = await mkdtemp(join(tmpdir(), "pi-prompt-test-"));
 	const fixture = join(root, "fixture");
 	const work = join(root, "work");
@@ -110,11 +110,13 @@ test("renders the official-style semantic workflow without fixing execute count"
 		const normalize = (prompt, outputPath) => prompt.replaceAll(outputPath, "{OUTPUT}");
 		const baselinePrompt = normalize(baseline.prompt, baseline.outputPath);
 		const stepPrompt = normalize(step.prompt, step.outputPath);
-		const verificationMarker = "\n4. Call `validate()`";
-		const baselinePrefix = baselinePrompt.slice(0, baselinePrompt.indexOf("\n2. "));
-		const stepPrefix = stepPrompt.slice(0, stepPrompt.indexOf("\n2. "));
-		const baselineSuffix = baselinePrompt.slice(baselinePrompt.indexOf(verificationMarker));
-		const stepSuffix = stepPrompt.slice(stepPrompt.indexOf(verificationMarker));
+		const workingApproach = /## Working approach[\s\S]*?(?=\r?\n## Tool use\r?\n)/;
+		const baselineSection = workingApproach.exec(baselinePrompt)?.[0] ?? "";
+		const stepSection = workingApproach.exec(stepPrompt)?.[0] ?? "";
+		const baselinePrefix = baselinePrompt.slice(0, baselinePrompt.indexOf("## Working approach"));
+		const stepPrefix = stepPrompt.slice(0, stepPrompt.indexOf("## Working approach"));
+		const baselineSuffix = baselinePrompt.slice(baselinePrompt.indexOf("## Tool use"));
+		const stepSuffix = stepPrompt.slice(stepPrompt.indexOf("## Tool use"));
 
 		assert.equal(baselinePrefix, stepPrefix);
 		assert.equal(baselineSuffix, stepSuffix);
@@ -124,7 +126,7 @@ test("renders the official-style semantic workflow without fixing execute count"
 			assert.ok(!prompt.includes("## Construction policy"));
 			assert.ok(!prompt.includes("## Shared workflow"));
 			assert.ok(prompt.includes("## Priorities"));
-			assert.ok(prompt.includes("## Workflow"));
+			assert.ok(prompt.includes("## Working approach"));
 			assert.ok(prompt.includes("save the first valid checkpoint"));
 			assert.ok(prompt.includes('format="step"'));
 			for (const forbiddenGuidance of [
@@ -161,6 +163,7 @@ test("renders the official-style semantic workflow without fixing execute count"
 
 		assert.match(baselinePrompt, /Decide how to organize[\s\S]*Construct the complete part/);
 		assert.doesNotMatch(baselinePrompt, /Establish the main section, base, or primary structure/);
+		assert.equal(baselineSection.includes("semantic workflow"), stepSection.includes("semantic workflow"));
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

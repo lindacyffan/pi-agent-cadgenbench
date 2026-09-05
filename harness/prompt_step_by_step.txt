@@ -32,12 +32,15 @@ Resolve trade-offs in this order:
   the drawing supports a more faithful construction.
 - The final result must be a valid solid suitable for STEP export.
 
-## Workflow
+## Working approach
 
 1. Read `input.png` and organize the printed dimensions, visible views, and
    important features before constructing geometry.
 
-{{CONSTRUCTION_WORKFLOW}}
+2. Establish the main section, base, or primary structure.
+
+3. Add holes, slots, pockets, bosses, walls, repeated features, and other
+   explicitly dimensioned details.
 
 4. Call `validate()` after construction and repair the geometry if validation
    fails.
@@ -62,7 +65,8 @@ export("{OUTPUT}", format="step")
 
 The persistent build123d execution environment carries geometry forward between
 steps. Do not discard valid progress unless a repair requires rolling back to
-the last valid checkpoint.
+the last valid checkpoint. The workflow is semantic and does not prescribe a
+required number of `execute()` calls.
 
 ## Tool use
 

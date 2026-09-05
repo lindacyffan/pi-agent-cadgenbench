@@ -1,4 +1,0 @@
-2. Decide how to organize the construction autonomously.
-
-3. Construct the complete part using the approach you determine is most
-   faithful to the drawing.
