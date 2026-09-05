@@ -35,8 +35,8 @@ async function exists(filePath) {
 }
 
 export function promptFileForVariant(variant) {
-	if (variant === "step-by-step") return "prompt_generation.txt";
-	if (variant === "one-shot") return "prompt_generation_one_shot.txt";
+	if (variant === "pi-agent") return "prompt_pi_agent_base.txt";
+	if (variant === "step-by-step") return "prompt_step_by_step_workflow.txt";
 	throw new Error(`Unknown Pi experiment variant: ${variant}`);
 }
 
@@ -81,22 +81,15 @@ export function buildPiInvocation({ extensionPath, imagePath, modelSpec, piPath,
 }
 
 async function renderVariantPrompt(variant, outputPath) {
-	const base = await readFile(path.join(HERE, "prompt_generation.txt"), "utf8");
-	if (variant === "step-by-step") return renderPrompt(base, outputPath);
-	if (variant !== "one-shot") throw new Error(`Unknown Pi experiment variant: ${variant}`);
+	const base = await readFile(path.join(HERE, promptFileForVariant("pi-agent")), "utf8");
+	if (variant === "pi-agent") return renderPrompt(`${base.trimEnd()}\n`, outputPath);
+	if (variant !== "step-by-step") throw new Error(`Unknown Pi experiment variant: ${variant}`);
 
-	const replacement = await readFile(path.join(HERE, promptFileForVariant(variant)), "utf8");
-	const section = /## Working approach[\s\S]*?(?=\r?\n## Rules\r?\n)/.exec(base);
-	if (!section) {
-		throw new Error("Could not replace the generation prompt working-approach section");
-	}
-	const start = section.index;
-	const end = start + section[0].length;
-	const oneShot = renderPrompt(replacement.trimEnd(), outputPath);
-	return renderPrompt(`${base.slice(0, start)}${oneShot}${base.slice(end)}\n`, outputPath);
+	const workflow = await readFile(path.join(HERE, promptFileForVariant(variant)), "utf8");
+	return renderPrompt(`${base.trimEnd()}\n\n${workflow.trimEnd()}\n`, outputPath);
 }
 
-export async function prepareWorkspace({ fixturePath, workPath, variant = "step-by-step" }) {
+export async function prepareWorkspace({ fixturePath, workPath, variant = "pi-agent" }) {
 	const fixture = path.resolve(fixturePath);
 	const work = path.resolve(workPath);
 	const inputPath = path.join(fixture, "input.png");
@@ -118,7 +111,7 @@ export async function prepareWorkspace({ fixturePath, workPath, variant = "step-
 
 function parseCliArgs(argv) {
 	const options = {
-		variant: "step-by-step",
+		variant: "pi-agent",
 		model: DEFAULT_MODEL,
 		mcpSpec: DEFAULT_MCP_SPEC,
 		execTimeout: DEFAULT_EXEC_TIMEOUT,
@@ -174,7 +167,7 @@ Required:
   --work <dir>        output directory for output.step, stream.jsonl, and metadata
 
 Options:
-  --variant <name>    step-by-step (default) or one-shot
+  --variant <name>    pi-agent (default) or step-by-step
   --model <spec>      Pi model, optionally provider/model:thinking
   --mcp-spec <spec>   build123d-mcp version spec
   --exec-timeout <s>  build123d execute timeout

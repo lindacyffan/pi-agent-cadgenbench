@@ -13,8 +13,8 @@ import {
 } from "./run_pi_experiment.mjs";
 
 test("maps each experimental variant to its prompt file", () => {
-	assert.equal(promptFileForVariant("step-by-step"), "prompt_generation.txt");
-	assert.equal(promptFileForVariant("one-shot"), "prompt_generation_one_shot.txt");
+	assert.equal(promptFileForVariant("pi-agent"), "prompt_pi_agent_base.txt");
+	assert.equal(promptFileForVariant("step-by-step"), "prompt_step_by_step_workflow.txt");
 	assert.throws(() => promptFileForVariant("unknown"), /Unknown Pi experiment variant/);
 });
 
@@ -46,7 +46,10 @@ test("builds an isolated Pi-only JSON invocation", () => {
 	});
 
 	assert.equal(invocation.command, "node");
-	assert.deepEqual(invocation.args.slice(0, 2), ["/pi/packages/coding-agent/dist/bundle/cli.js", "--mode"]);
+	assert.deepEqual(invocation.args.slice(0, 2), [
+		"/pi/packages/coding-agent/dist/bundle/cli.js",
+		"--mode",
+	]);
 	assert.ok(invocation.args.includes("json"));
 	assert.ok(invocation.args.includes("--no-session"));
 	assert.ok(invocation.args.includes("--no-context-files"));
@@ -56,9 +59,9 @@ test("builds an isolated Pi-only JSON invocation", () => {
 	assert.ok(invocation.args.includes("qwen-token-plan-cn/qwen3.8-flash"));
 	assert.ok(invocation.args.includes("--thinking"));
 	assert.ok(invocation.args.includes("high"));
-		assert.ok(invocation.args.includes("/repo/harness/pi_build123d_mcp.ts"));
-		assert.ok(invocation.args.includes("/providers/pi-dashscope-native/src/index.ts"));
-		assert.equal(invocation.args.filter((arg) => arg === "--extension").length, 2);
+	assert.ok(invocation.args.includes("/repo/harness/pi_build123d_mcp.ts"));
+	assert.ok(invocation.args.includes("/providers/pi-dashscope-native/src/index.ts"));
+	assert.equal(invocation.args.filter((arg) => arg === "--extension").length, 2);
 	assert.ok(invocation.args.includes("@/run/input.png"));
 	assert.equal(invocation.stdio[0], "pipe");
 });
@@ -75,6 +78,7 @@ test("prepares an isolated fixture workspace without prior artifacts", async () 
 
 	const prepared = await prepareWorkspace({ fixturePath: fixture, workPath: work });
 	try {
+		assert.equal(prepared.variant, "pi-agent");
 		assert.equal(await readFile(join(work, "input.png"), "utf8"), "png-bytes");
 		assert.equal(await readFile(join(work, "prompt.txt"), "utf8"), prepared.prompt);
 		assert.equal(prepared.outputPath, join(work, "output.step"));
@@ -85,49 +89,54 @@ test("prepares an isolated fixture workspace without prior artifacts", async () 
 	}
 });
 
-test("one-shot is a neutral baseline and changes only the working-approach section", async () => {
+test("step-by-step appends only the high-level workflow to the Pi baseline", async () => {
 	const root = await mkdtemp(join(tmpdir(), "pi-prompt-test-"));
 	const fixture = join(root, "fixture");
 	const work = join(root, "work");
 	await mkdir(fixture, { recursive: true });
 	await writeFile(join(fixture, "input.png"), "png-bytes");
 
-	const step = await prepareWorkspace({ fixturePath: fixture, workPath: join(work, "step"), variant: "step-by-step" });
-	const oneShot = await prepareWorkspace({ fixturePath: fixture, workPath: join(work, "one-shot"), variant: "one-shot" });
+	const baseline = await prepareWorkspace({
+		fixturePath: fixture,
+		workPath: join(work, "pi-agent"),
+		variant: "pi-agent",
+	});
+	const step = await prepareWorkspace({
+		fixturePath: fixture,
+		workPath: join(work, "step-by-step"),
+		variant: "step-by-step",
+	});
 	try {
-		const workingApproach = /## Working approach[\s\S]*?(?=\r?\n## Rules\r?\n)/;
-		const stepSection = workingApproach.exec(step.prompt)?.[0] ?? "";
-		const oneShotSection = workingApproach.exec(oneShot.prompt)?.[0] ?? "";
-		const stepPrefix = step.prompt.slice(0, step.prompt.indexOf("## Working approach"));
-		const oneShotPrefix = oneShot.prompt.slice(0, oneShot.prompt.indexOf("## Working approach"));
-		const stepSuffix = step.prompt.slice(step.prompt.indexOf("\n## Rules"));
-		const oneShotSuffix = oneShot.prompt.slice(oneShot.prompt.indexOf("\n## Rules"));
+		const normalize = (prompt, outputPath) => prompt.replaceAll(outputPath, "{OUTPUT}");
+		const normalizedBaseline = normalize(baseline.prompt, baseline.outputPath).trimEnd();
+		const normalizedStep = normalize(step.prompt, step.outputPath).trimEnd();
 
-		assert.equal(oneShotPrefix, stepPrefix);
-		assert.equal(
-			oneShotSuffix.replaceAll(oneShot.outputPath, "{OUTPUT}").trimEnd(),
-			stepSuffix.replaceAll(step.outputPath, "{OUTPUT}").trimEnd(),
-		);
-		assert.ok(step.prompt.includes("Build the side profile first, then the plan features."));
-		assert.ok(!oneShot.prompt.includes("Build the side profile first, then the plan features."));
-		assert.ok(oneShotSection.includes("single integrated generation problem"));
-		assert.ok(oneShotSection.includes("autonomously decide"));
-		assert.ok(oneShotSection.includes("Do not follow a predefined stage-by-stage decomposition"));
-		for (const stepSpecificGuidance of [
-			"Build a dimension table",
-			"Build the side profile first",
-			"**Checkpoint.**",
-			"Dominant form correction gate",
-			"Iterate to fidelity",
-			"Accuracy pass before finishing",
-		]) {
-			assert.ok(stepSection.includes(stepSpecificGuidance), `step prompt lost: ${stepSpecificGuidance}`);
-			assert.ok(!oneShotSection.includes(stepSpecificGuidance), `one-shot inherited step guidance: ${stepSpecificGuidance}`);
+		assert.ok(normalizedStep.startsWith(`${normalizedBaseline}\n\n## Step-by-step workflow`));
+		assert.ok(!baseline.prompt.includes("## Step-by-step workflow"));
+		assert.ok(step.prompt.includes("organize the printed dimensions"));
+		assert.ok(step.prompt.includes("main section, base, or primary structure"));
+		assert.ok(step.prompt.includes("holes, slots, pockets, bosses"));
+		assert.ok(step.prompt.includes("save the first valid checkpoint"));
+		assert.match(step.prompt, /render_view\(\)[\s\S]*measure\(\)/);
+		assert.ok(step.prompt.includes("largest remaining discrepancy"));
+		assert.ok(step.prompt.includes("Validate the corrected model again"));
+
+		for (const prompt of [baseline.prompt, step.prompt]) {
+			assert.ok(prompt.includes("## Priorities"));
+			assert.ok(prompt.includes('format="step"'));
+			for (const forbiddenGuidance of [
+				"Build a dimension table",
+				"side profile first",
+				"wall thickness",
+				"dominant form",
+				"build123d://skill",
+				"arithmetic chain",
+				"exactly one initial geometry-changing execute()",
+				"exactly two planned stages",
+			]) {
+				assert.ok(!prompt.includes(forbiddenGuidance), `prompt inherited forbidden guidance: ${forbiddenGuidance}`);
+			}
 		}
-		assert.ok(oneShot.prompt.includes('export("' + join(oneShot.workPath, "output.step") + '", format="step")'));
-		assert.ok(oneShot.prompt.includes("## Priorities (resolve trade-offs in this order)"));
-		assert.ok(oneShot.prompt.includes("## Rules"));
-		assert.ok(oneShot.prompt.includes("## Tools"));
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

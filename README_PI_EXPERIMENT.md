@@ -1,29 +1,66 @@
-# Pi-only CADGenBench Step A/B Experiment
+# Pi Agent CADGenBench Workflow Experiment
 
-This branch contains a controlled Pi Agent experiment on CADGenBench generation
-tasks. It is not a direct rerun of the official strongest submission harness.
-The experiment deliberately replaces the Claude/Codex agent driver with Pi while
-retaining the CAD-specific task core.
+This branch runs a Pi-only CADGenBench generation experiment. It is not a rerun
+of the official strongest harness and does not inject that harness's full CAD
+prompt or domain-specific heuristics into either arm.
 
-## Research question
+## Research Question
 
-Under otherwise identical conditions, does the official step-by-step CAD
-construction workflow improve Pi Agent generation compared with an integrated
-one-shot construction workflow?
+Under otherwise identical runtime, model, tool, fixture, and output conditions,
+does appending a high-level step-by-step construction workflow improve Pi
+Agent's CAD generation compared with the default Pi Agent baseline?
 
 ## Arms
 
-| Arm | Variant name | Construction policy |
+| Arm | Variant name | Prompt |
 | --- | --- | --- |
-| Pi Agent | `one-shot` | Neutral one-shot baseline: analyze the complete drawing, autonomously decide the construction strategy, and make the initial geometry-changing `execute()` represent the complete attempted model without a prescribed stage-by-stage workflow. |
-| Pi Agent + step-by-step | `step-by-step` | Adds the official generation workflow: dimension table first, side/Z profile before plan features, checkpointing, dominant-form correction, fidelity iteration, and a final accuracy pass. |
+| Pi Agent baseline | `pi-agent` | `prompt_pi_agent_base.txt` only |
+| Pi Agent + step-by-step | `step-by-step` | The identical base prompt followed by `prompt_step_by_step_workflow.txt` |
 
-Both arms can use validation, rendering, measurement, feature recognizers, and
-corrective execution after the initial construction. The difference is whether
-the step-by-step workflow scaffold is supplied in addition to the shared CAD
-task instructions.
+The baseline is not explicitly instructed to be one-shot. Pi may naturally
+construct the complete model in one action or choose its own tool sequence;
+actual behavior can be measured later from `stream.jsonl`. The treatment arm
+adds the requested high-level sequence:
 
-## Controlled variables
+```text
+read drawing and organize dimensions
+  -> establish main section/base
+  -> add holes, slots, bosses, and other features
+  -> validate
+  -> save first valid checkpoint
+  -> render/measure/cross-section inspect
+  -> correct largest discrepancy
+  -> validate and checkpoint again
+  -> final export
+```
+
+The workflow does not prescribe the number of `execute()` calls. It is a
+semantic workflow scaffold, not a tool-call-count constraint.
+
+## Prompt Control
+
+Both arms receive the exact same base prompt:
+
+- `harness/prompt_pi_agent_base.txt`
+
+The `step-by-step` arm receives that prompt unchanged, followed by:
+
+- `harness/prompt_step_by_step_workflow.txt`
+
+The added workflow is limited to the high-level sequence above. Neither arm
+receives the official harness's dimension-table procedure, arithmetic-chain
+rules, side-profile-first heuristic, wall-thickness heuristic, dominant-form
+gate, MCP skill-resource instructions, or other full-prompt CAD tactics.
+
+The test suite checks that:
+
+- the baseline prompt contains no `## Step-by-step workflow` section;
+- the treatment prompt is the baseline followed by that workflow;
+- both prompts use the exact scored output path;
+- neither prompt contains the excluded official harness heuristics;
+- neither prompt imposes an exact initial `execute()` count.
+
+## Controlled Variables
 
 Both arms use:
 
@@ -33,36 +70,13 @@ Both arms use:
 - Temperature `0` through the Pi model configuration.
 - The same build123d MCP server spec: `build123d-mcp==0.3.81`.
 - The same execute timeout, defaulting to 300 seconds.
-- The same non-drawing build123d MCP tool set.
+- The same non-drawing build123d MCP tool surface.
 - The same working-directory preparation and stale-artifact cleanup.
 - The same STEP output contract and exact `output.step` path substitution.
-- The same prompt outside `Working approach`.
 
-The intended experimental variable is the `Working approach` section and the
-construction-flow policy it encodes.
+The intended experimental variable is the addition of the high-level workflow.
 
-## Prompt control
-
-`harness/prompt_generation.txt` is the official step-by-step generation prompt.
-For the one-shot arm, `harness/run_pi_experiment.mjs` replaces only the section
-from `## Working approach` through the text immediately before `## Rules` with
-`harness/prompt_generation_one_shot.txt`.
-
-The one-shot replacement is intentionally neutral:
-
-- It treats the task as one integrated generation problem.
-- It lets Pi autonomously decide analysis order, code organization, inspection
-  timing, and refinement passes.
-- It requires the initial geometry-changing `execute()` to represent the
-  complete attempted model rather than a deliberately partial checkpoint.
-- It does not provide the step-specific dimension-table, profile-first,
-  checkpoint, dominant-form, iteration, or accuracy-pass workflow.
-
-The test `harness/run_pi_experiment.test.mjs` enforces this prompt contract.
-It checks the shared prefix and suffix and rejects leakage of the step-specific
-workflow guidance into the one-shot baseline.
-
-## Implementation map
+## Implementation Map
 
 - `harness/run_pi_experiment.mjs`
   Prepares an isolated run directory, renders the selected prompt, invokes Pi
@@ -72,19 +86,19 @@ workflow guidance into the one-shot baseline.
 - `harness/pi_build123d_mcp.ts`
   Implements the Pi extension and JSON-RPC MCP client. It starts one
   build123d MCP process, registers the returned non-drawing tools with Pi, and
-  keeps the process alive for the whole Pi session so `execute()` state
-  persists across tool calls.
+  keeps the process alive for the session so geometry state persists between
+  tool calls.
 
-- `harness/prompt_generation.txt`
-  Official step-by-step generation prompt used as the shared prompt base.
+- `harness/prompt_pi_agent_base.txt`
+  The shared, minimal CAD benchmark task prompt used by both arms.
 
-- `harness/prompt_generation_one_shot.txt`
-  Replacement fragment for the one-shot `Working approach`.
+- `harness/prompt_step_by_step_workflow.txt`
+  The high-level workflow appended only to the `step-by-step` arm.
 
 - `harness/run_pi_experiment.test.mjs`
-  Runner and prompt-isolation tests.
+  Runner, invocation-isolation, and prompt-contract tests.
 
-## Local layout
+## Local Layout
 
 The default paths expect this sibling-directory layout:
 
@@ -118,8 +132,8 @@ Pi environment. The runner defaults to:
 
 Override it with `--provider-extension` when using a different checkout.
 
-Temperature is currently configured in Pi's model settings rather than copied
-into the runner command:
+Temperature is configured in Pi's model settings rather than passed as a
+runner flag:
 
 ```json
 {
@@ -147,24 +161,24 @@ node --test harness\run_pi_experiment.test.mjs
 
 The current expected result is six passing tests and zero failures.
 
-## Run one fixture
+## Run One Fixture
+
+Run the Pi baseline:
+
+```powershell
+node harness\run_pi_experiment.mjs `
+  --fixture work\fixtures\118 `
+  --work work\pi-runs\118-pi-agent `
+  --variant pi-agent
+```
 
 Run the step-by-step arm:
 
 ```powershell
 node harness\run_pi_experiment.mjs `
   --fixture work\fixtures\118 `
-  --work work\pi-runs\118-step `
+  --work work\pi-runs\118-step-by-step `
   --variant step-by-step
-```
-
-Run the one-shot arm:
-
-```powershell
-node harness\run_pi_experiment.mjs `
-  --fixture work\fixtures\118 `
-  --work work\pi-runs\118-one-shot `
-  --variant one-shot
 ```
 
 Useful options:
@@ -176,7 +190,7 @@ Useful options:
 - `--extension path\to\pi_build123d_mcp.ts`
 - `--provider-extension path\to\dashscope\extension`
 
-## Run artifacts
+## Run Artifacts
 
 Each run directory contains:
 
@@ -191,22 +205,23 @@ Each run directory contains:
 images. Do not commit benchmark fixtures, streams, rendered images, STEP files,
 credentials, or API configuration to this repository.
 
-## Current status and limitations
+## Current Status And Limitations
 
 - The Pi bridge and persistent build123d MCP session are implemented.
-- Prompt A/B isolation is implemented and tested.
-- Fixture 118 step-by-step completed as a local smoke run and produced a valid
-  STEP file.
+- The Pi baseline versus appended high-level workflow prompt contract is
+  implemented and tested.
+- No controlled smoke run has yet been completed with this final prompt
+  contract. Earlier fixture-118 runs used the superseded prompt design and are
+  not formal data points.
 - Formal sweeps, repeated trials, and official CADGenBench scoring/packaging
   are not yet wired for this Pi-only runner.
 - The current experiment covers generation fixtures only; editing fixtures are
-  not supported yet.
+  unsupported.
 - Both arms receive the same non-drawing MCP tools, so tool access does not
-  differ between arms. The bridge does not yet reproduce the official Claude
-  driver's curated 17-tool allowlist.
-- `run_meta.json` does not yet record the effective temperature or resolved
-  MCP package version.
-- Windows smoke testing uses a local worker fix in the sibling
-  `build123d-mcp` checkout. The geometry workflow is unchanged, but provenance
-  should disclose that local patch until it is upstreamed or committed here as
-  a patch file.
+  differ. The bridge does not reproduce the official Claude driver's curated
+  17-tool allowlist.
+- `run_meta.json` does not yet record the effective temperature, git commit,
+  dirty state, resolved MCP package version, or local patch status.
+- Windows smoke testing uses a local worker fix in the sibling `build123d-mcp`
+  checkout. The geometry workflow is unchanged, but provenance should disclose
+  that local patch until it is upstreamed or committed here as a patch file.
