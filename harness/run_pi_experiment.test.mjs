@@ -95,9 +95,37 @@ test("one-shot changes only the shared working-approach section", async () => {
 	const step = await prepareWorkspace({ fixturePath: fixture, workPath: join(work, "step"), variant: "step-by-step" });
 	const oneShot = await prepareWorkspace({ fixturePath: fixture, workPath: join(work, "one-shot"), variant: "one-shot" });
 	try {
+		const workingApproach = /## Working approach[\s\S]*?(?=\r?\n## Rules\r?\n)/;
+		const stepSection = workingApproach.exec(step.prompt)?.[0] ?? "";
+		const oneShotSection = workingApproach.exec(oneShot.prompt)?.[0] ?? "";
+		const stepPrefix = step.prompt.slice(0, step.prompt.indexOf("## Working approach"));
+		const oneShotPrefix = oneShot.prompt.slice(0, oneShot.prompt.indexOf("## Working approach"));
+		const stepSuffix = step.prompt.slice(step.prompt.indexOf("\n## Rules"));
+		const oneShotSuffix = oneShot.prompt.slice(oneShot.prompt.indexOf("\n## Rules"));
+
+		assert.equal(oneShotPrefix, stepPrefix);
+		assert.equal(
+			oneShotSuffix.replaceAll(oneShot.outputPath, "{OUTPUT}").trimEnd(),
+			stepSuffix.replaceAll(step.outputPath, "{OUTPUT}").trimEnd(),
+		);
+		assert.ok(oneShotSection.length >= stepSection.length * 0.45);
 		assert.ok(step.prompt.includes("Build the side profile first, then the plan features."));
 		assert.ok(!oneShot.prompt.includes("Build the side profile first, then the plan features."));
 		assert.ok(oneShot.prompt.includes("Construct the complete part in the first execute()."));
+		const numberedItem = (prompt, number) => {
+			const start = prompt.indexOf(`\n${number}. **`);
+			assert.ok(start !== -1, `missing numbered item ${number}`);
+			const next = prompt.indexOf(`\n${number + 1}. **`, start);
+			const end = next === -1 ? prompt.length : next;
+			return prompt.slice(start, end).replaceAll("\r", "").trimEnd();
+		};
+		for (const sharedItem of [1, 3, 4, 5, 6]) {
+			assert.equal(
+				numberedItem(oneShotSection, sharedItem),
+				numberedItem(stepSection, sharedItem),
+				`one-shot item ${sharedItem} must preserve step-by-step guidance`,
+			);
+		}
 		assert.ok(oneShot.prompt.includes('export("' + join(oneShot.workPath, "output.step") + '", format="step")'));
 		assert.ok(oneShot.prompt.includes("## Priorities (resolve trade-offs in this order)"));
 		assert.ok(oneShot.prompt.includes("## Rules"));
