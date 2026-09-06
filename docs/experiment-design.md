@@ -7,12 +7,13 @@ prompt or domain-specific heuristics into either arm.
 ## Repository Scope
 
 This branch is intentionally trimmed to the Pi-only experiment. Its active
-tracked content is this document and the focused files under `harness/`.
+tracked content is this document, the concise root README, and the focused
+files under `harness/`.
 The upstream official repository remains the provenance source; unrelated
 official runners, selfbench assets, split lists, historical logs, and generated
 CAD evidence are not part of this branch. The fixture, scoring, and aggregation
-utilities retained under `harness/` support this experiment but do not run an
-official generation pipeline.
+utilities under `harness/dataset/` and `harness/evaluation/` support this
+experiment but do not run an official generation pipeline.
 
 ## Research Question
 
@@ -63,8 +64,8 @@ harness's full prompt or CAD heuristics.
 Each arm has one complete prompt file with its own directly readable
 `Working approach` section:
 
-- `harness/prompt_pi_agent.txt`
-- `harness/prompt_step_by_step.txt`
+- `harness/prompts/prompt_pi_agent.txt`
+- `harness/prompts/prompt_step_by_step.txt`
 
 The runner does not assemble prompts at runtime. The two files are deliberately
 duplicated outside `Working approach` so the experimental contract is visible
@@ -109,33 +110,42 @@ semantic workflow.
 
 ## Implementation Map
 
-- `harness/run_pi_experiment.mjs`
+- `harness/runner/run_pi_experiment.mjs`
   Prepares an isolated run directory, renders the selected prompt, invokes Pi
   with isolated flags, captures the JSON stream and stderr, and records run
   metadata.
 
-- `harness/pi_build123d_mcp.ts`
+- `harness/bridge/pi_build123d_mcp.ts`
   Implements the Pi extension and JSON-RPC MCP client. It starts one
   build123d MCP process, registers the returned non-drawing tools with Pi, and
   keeps the process alive for the session so geometry state persists between
   tool calls.
 
-- `harness/prompt_pi_agent.txt`
+- `harness/prompts/prompt_pi_agent.txt`
   Complete baseline prompt with an explicit one-shot construction approach.
 
-- `harness/prompt_step_by_step.txt`
+- `harness/prompts/prompt_step_by_step.txt`
   Complete treatment prompt with the official-style semantic workflow.
 
-- `harness/run_pi_experiment.test.mjs`
+- `harness/runner/run_pi_experiment.test.mjs`
   Runner, invocation-isolation, and prompt-contract tests.
 
-- `harness/pi_stream_filter.py`
+- `harness/monitoring/pi_stream_filter.py`
   Optional sidecar monitor for a run's Pi JSON stream. It prints concise
   execute, validation, export, reasoning, error, and completion events and
   writes the same timeline to `filtered.log`.
 
-- `harness/pi_stream_filter_test.py`
+- `harness/monitoring/pi_stream_filter_test.py`
   Tests for the Pi stream event formats and live-follow behavior.
+
+- `harness/dataset/fetch_fixture.py`
+  Downloads one public generation or editing fixture from CADGenBench.
+
+- `harness/evaluation/score.py`
+  Runs the build123d validity gate and an optional local proxy shape score.
+
+- `harness/evaluation/aggregate.py`
+  Summarizes repeated proxy-score tables and paired A/B deltas.
 
 ## Local Layout
 
@@ -195,24 +205,31 @@ runner flag:
 Run the runner and prompt-isolation tests:
 
 ```powershell
-node --test harness\run_pi_experiment.test.mjs
+node --test harness\runner\run_pi_experiment.test.mjs
 ```
 
 Run the stream-filter tests:
 
 ```powershell
-python -m unittest discover -s harness -p "pi_stream_filter_test.py" -v
+python -m unittest discover -s harness\monitoring -p "pi_stream_filter_test.py" -v
+```
+
+Run the persistent MCP bridge integration test from the sibling Pi checkout:
+
+```powershell
+cd ..\pi
+node --test --import tsx ..\repo\harness\bridge\pi_build123d_mcp.test.ts
 ```
 
 The current expected result is six passing runner tests, five passing Python
-tests, and zero failures.
+tests, two bridge tests, and zero failures.
 
 ## Run One Fixture
 
 Run the Pi baseline:
 
 ```powershell
-node harness\run_pi_experiment.mjs `
+node harness\runner\run_pi_experiment.mjs `
   --fixture work\fixtures\118 `
   --work work\pi-runs\118-pi-agent `
   --variant pi-agent
@@ -221,7 +238,7 @@ node harness\run_pi_experiment.mjs `
 Run the step-by-step arm:
 
 ```powershell
-node harness\run_pi_experiment.mjs `
+node harness\runner\run_pi_experiment.mjs `
   --fixture work\fixtures\118 `
   --work work\pi-runs\118-step-by-step `
   --variant step-by-step
@@ -242,7 +259,7 @@ While an experiment is running, open another terminal in this repository and
 follow its stream:
 
 ```powershell
-python harness\pi_stream_filter.py work\pi-runs\118-step-by-step --follow
+python harness\monitoring\pi_stream_filter.py work\pi-runs\118-step-by-step --follow
 ```
 
 The monitor reads only `stream.jsonl`, prints high-signal events live, and stops

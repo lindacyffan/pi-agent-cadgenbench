@@ -7,10 +7,10 @@ whole-benchmark mean has a ~0.018 error bar — a single before/after can't see 
 per-fixture table to a text file, then:
 
   # within-variant: per-fixture mean/std + overall mean +/- run-to-run stderr
-  python harness/aggregate.py runA-r1.txt runA-r2.txt runA-r3.txt
+  python harness/evaluation/aggregate.py runA-r1.txt runA-r2.txt runA-r3.txt
 
   # A/B (paired by fixture): does B beat A above the noise?
-  python harness/aggregate.py A-r1.txt A-r2.txt --vs B-r1.txt B-r2.txt
+  python harness/evaluation/aggregate.py A-r1.txt A-r2.txt --vs B-r1.txt B-r2.txt
 
 Table file format: one fixture per line, e.g. "136 generation valid 0.076".
 Parsed tolerantly: first token = fixture id, last numeric token = cad score.

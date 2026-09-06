@@ -38,7 +38,7 @@ test("parses optional Pi thinking suffix without breaking provider paths", () =>
 
 test("builds an isolated Pi-only JSON invocation", () => {
 	const invocation = buildPiInvocation({
-		extensionPath: "/repo/harness/pi_build123d_mcp.ts",
+		extensionPath: "/repo/harness/bridge/pi_build123d_mcp.ts",
 		imagePath: "/run/input.png",
 		modelSpec: "qwen-token-plan-cn/qwen3.8-flash:high",
 		piPath: "/pi/packages/coding-agent/dist/bundle/cli.js",
@@ -59,7 +59,7 @@ test("builds an isolated Pi-only JSON invocation", () => {
 	assert.ok(invocation.args.includes("qwen-token-plan-cn/qwen3.8-flash"));
 	assert.ok(invocation.args.includes("--thinking"));
 	assert.ok(invocation.args.includes("high"));
-	assert.ok(invocation.args.includes("/repo/harness/pi_build123d_mcp.ts"));
+	assert.ok(invocation.args.includes("/repo/harness/bridge/pi_build123d_mcp.ts"));
 	assert.ok(invocation.args.includes("/providers/pi-dashscope-native/src/index.ts"));
 	assert.equal(invocation.args.filter((arg) => arg === "--extension").length, 2);
 	assert.ok(invocation.args.includes("@/run/input.png"));

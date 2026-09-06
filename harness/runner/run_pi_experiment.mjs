@@ -11,8 +11,8 @@ const DEFAULT_MCP_SPEC = "build123d-mcp==0.3.81";
 const DEFAULT_EXEC_TIMEOUT = "300";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_PI_PATH = path.resolve(HERE, "../../pi/packages/coding-agent/dist/bundle/cli.js");
-const DEFAULT_EXTENSION_PATH = path.join(HERE, "pi_build123d_mcp.ts");
+const DEFAULT_PI_PATH = path.resolve(HERE, "../../../pi/packages/coding-agent/dist/bundle/cli.js");
+const DEFAULT_EXTENSION_PATH = path.join(HERE, "../bridge/pi_build123d_mcp.ts");
 const DEFAULT_PROVIDER_EXTENSION_PATH = path.join(
 	homedir(),
 	".pi",
@@ -81,7 +81,7 @@ export function buildPiInvocation({ extensionPath, imagePath, modelSpec, piPath,
 }
 
 async function renderVariantPrompt(variant, outputPath) {
-	const prompt = await readFile(path.join(HERE, promptFileForVariant(variant)), "utf8");
+	const prompt = await readFile(path.join(HERE, "../prompts", promptFileForVariant(variant)), "utf8");
 	return renderPrompt(`${prompt.trimEnd()}\n`, outputPath);
 }
 
@@ -156,7 +156,7 @@ function parseCliArgs(argv) {
 }
 
 const helpText = `Usage:
-  node harness/run_pi_experiment.mjs --fixture <dir> --work <dir> [options]
+  node harness/runner/run_pi_experiment.mjs --fixture <dir> --work <dir> [options]
 
 Required:
   --fixture <dir>     CADGenBench generation fixture containing input.png

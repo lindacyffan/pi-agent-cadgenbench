@@ -12,7 +12,7 @@ pollute bounding boxes and edge counts.
 
 Usage:
   uv run --project <build123d-mcp> --with trimesh --with scipy \
-      python harness/score.py <output.step> [<ground_truth.step>]
+      python harness/evaluation/score.py <output.step> [<ground_truth.step>]
 """
 
 import sys

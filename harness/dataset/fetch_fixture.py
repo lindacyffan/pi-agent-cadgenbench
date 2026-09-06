@@ -5,9 +5,9 @@ STEP) are public; the ground truth is held out. Generation fixtures are 101-150,
 editing fixtures 201+.
 
 Usage:
-  uv run --with huggingface_hub python harness/fetch_fixture.py <id> <dest_dir>
+  uv run --with huggingface_hub python harness/dataset/fetch_fixture.py <id> <dest_dir>
 e.g.
-  uv run --with huggingface_hub python harness/fetch_fixture.py 102 /tmp/cgb_102
+  uv run --with huggingface_hub python harness/dataset/fetch_fixture.py 102 /tmp/cgb_102
 """
 
 import sys

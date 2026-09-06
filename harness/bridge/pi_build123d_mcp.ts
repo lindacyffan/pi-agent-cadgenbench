@@ -70,7 +70,7 @@ interface PendingRequest {
 }
 
 const localBuild123dSource = fileURLToPath(
-	new URL("../../build123d-mcp/src", import.meta.url),
+	new URL("../../../build123d-mcp/src", import.meta.url),
 );
 
 function jsonRpcNotification(method: string, params?: unknown): string {
